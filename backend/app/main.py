@@ -1,18 +1,21 @@
 import os
 import uvicorn
-from fastapi import FastAPI, HTTPException
+import asyncio
+import logging
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+
+logger = logging.getLogger(__name__)
 
 # Import agent graph builder
 try:
     from app.agent.graph import get_agent_graph
 except Exception as e:
     get_agent_graph = None
-    import logging
-    logging.warning(f"Failed to import get_agent_graph: {e}")
+    logger.warning(f"Failed to import get_agent_graph: {e}")
 
 app = FastAPI(
     title="SiteVisit AI Backend",
@@ -40,7 +43,9 @@ class ChatResponse(BaseModel):
     response: str
     messages: List[Dict[str, Any]]
 
-from app.agent.db import execute_read_query, get_db_connection
+from app.agent.db import execute_read_query, get_db_connection, save_whatsapp_message, get_whatsapp_chat_history
+from app.services.whatsapp import send_whatsapp_message
+from fastapi import Request
 
 @app.get("/")
 def read_root():
@@ -127,8 +132,43 @@ class VenueCreate(BaseModel):
     has_pa_system: bool = False
     pa_system_provider: str | None = None
 
+async def auto_check_venue_and_message_contact(venue_id: int):
+    """
+    Background task that waits 10 seconds, then queries the agent
+    to inspect the newly created venue, find missing details, and send a WhatsApp message
+    to +263780642578 asking for the missing info.
+    """
+    logger.info(f"Background task triggered for venue ID: {venue_id}. Waiting 10 seconds...")
+    await asyncio.sleep(10)
+    
+    try:
+        if get_agent_graph is None:
+            logger.error("Agent graph is not initialized. Background check failed.")
+            return
+            
+        agent = get_agent_graph()
+        
+        # Invoke agent with system prompt instruction to inspect venue_id and message contact
+        instruction_msg = HumanMessage(
+            content=(
+                f"Automated trigger: A new venue with database ID {venue_id} has been added. "
+                "Please inspect the venue_venue table for this venue using run_sql_query_tool. "
+                "Identify if there is any missing information (such as capacity, address, power, internet details, etc.). "
+                "If there are missing fields, send a WhatsApp message to the coordinator at '+263780642578' "
+                "asking them to provide the missing details. Use the send_whatsapp_message_tool."
+            )
+        )
+        
+        logger.info(f"Invoking agent graph for auto checking venue {venue_id}")
+        await agent.ainvoke({"messages": [instruction_msg]})
+        logger.info(f"Finished background check and message task for venue {venue_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in auto_check_venue_and_message_contact: {e}", exc_info=True)
+
+
 @app.post("/api/venues")
-def create_venue(venue: VenueCreate):
+def create_venue(venue: VenueCreate, background_tasks: BackgroundTasks):
     try:
         query = """
             INSERT INTO venue_venue (
@@ -158,6 +198,10 @@ def create_venue(venue: VenueCreate):
                 cur.execute(query, params)
                 inserted_id = cur.fetchone()[0]
                 conn.commit()
+                
+                # Register background check task
+                background_tasks.add_task(auto_check_venue_and_message_contact, inserted_id)
+                
                 return {"status": "success", "id": str(inserted_id)}
         except Exception as e:
             conn.rollback()
@@ -241,8 +285,109 @@ async def chat_with_agent(request: ChatRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(err)}")
+@app.get("/api/whatsapp/webhook")
+def verify_meta_webhook(request: Request):
+    """
+    Verification endpoint required by Meta WhatsApp Cloud API.
+    """
+    params = request.query_params
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
+    
+    if mode and token:
+        verify_token = os.getenv("META_VERIFY_TOKEN")
+        if mode == "subscribe" and token == verify_token:
+            from fastapi.responses import PlainTextResponse
+            return PlainTextResponse(content=challenge)
+        else:
+            raise HTTPException(status_code=403, detail="Verification token mismatch")
+    return {"status": "ready"}
+
+@app.post("/api/whatsapp/webhook")
+async def receive_whatsapp_webhook(request: Request):
+    """
+    Webhook endpoint to receive incoming WhatsApp messages from Twilio or Meta.
+    It runs the query through the AI database agent and responds automatically.
+    """
+    content_type = request.headers.get("content-type", "")
+    sender = None
+    message_body = None
+    
+    if "application/x-www-form-urlencoded" in content_type:
+        # Twilio payload
+        form_data = await request.form()
+        # Form values from Twilio are typically format: whatsapp:+263770000000
+        sender = form_data.get("From")
+        message_body = form_data.get("Body")
+        if sender and sender.startswith("whatsapp:"):
+            sender = sender.split("whatsapp:")[1]
+    else:
+        # Meta payload (JSON)
+        try:
+            body = await request.json()
+            entry = body.get("entry", [])[0]
+            changes = entry.get("changes", [])[0]
+            value = changes.get("value", {})
+            messages = value.get("messages", [])
+            if messages:
+                message = messages[0]
+                sender = message.get("from")
+                if message.get("type") == "text":
+                    message_body = message.get("text", {}).get("body")
+        except Exception as e:
+            import logging
+            logging.error(f"Error parsing Meta payload: {e}")
+            
+    if not sender or not message_body:
+        return {"status": "ignored", "reason": "No sender or message found"}
+        
+    try:
+        # 1. Save user's message to database history
+        save_whatsapp_message(sender, "user", message_body)
+        
+        # 2. Get past history for this sender (including the message we just saved)
+        db_history = get_whatsapp_chat_history(sender, limit=20)
+        
+        # 3. Convert history to LangChain messages format
+        langchain_messages = []
+        for msg in db_history:
+            if msg["role"] == "user":
+                langchain_messages.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "assistant":
+                langchain_messages.append(AIMessage(content=msg["content"]))
+                
+        # 4. Invoke the AI Agent Graph
+        if get_agent_graph is None:
+            raise ValueError("Agent graph is not initialized.")
+            
+        agent = get_agent_graph()
+        result = await agent.ainvoke({"messages": langchain_messages})
+        
+        # 5. Extract AI agent's response
+        output_messages = result.get("messages", [])
+        if not output_messages:
+            raise ValueError("No response returned from agent.")
+            
+        final_message = output_messages[-1]
+        ai_response = extract_message_content(final_message.content)
+        
+        # 6. Save agent's reply to database history
+        save_whatsapp_message(sender, "assistant", ai_response)
+        
+        # 7. Send message back to user via WhatsApp
+        send_whatsapp_message(sender, ai_response)
+        
+        return {"status": "success", "response": ai_response}
+        
+    except Exception as e:
+        import logging
+        logging.error(f"Error handling WhatsApp webhook: {e}", exc_info=True)
+        # Return 200 OK to the API Gateway to prevent infinite retries, but log the error
+        return {"status": "error", "detail": str(e)}
 
 if __name__ == "__main__":
+
     # Get port from env or default to 8000
     port = int(os.getenv("PORT", 8000))
     uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

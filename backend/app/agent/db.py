@@ -47,3 +47,37 @@ def execute_write_query(query: str, params: Tuple = None) -> str:
         raise e
     finally:
         conn.close()
+
+def save_whatsapp_message(phone_number: str, role: str, content: str) -> None:
+    """
+    Saves a message in the whatsapp_chat_history table.
+    """
+    query = """
+        INSERT INTO whatsapp_chat_history (phone_number, role, content)
+        VALUES (%s, %s, %s);
+    """
+    execute_write_query(query, (phone_number, role, content))
+
+def get_whatsapp_chat_history(phone_number: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """
+    Retrieves the last N messages for a given phone number, ordered chronologically.
+    """
+    query = """
+        SELECT role, content FROM (
+            SELECT role, content, created_at
+            FROM whatsapp_chat_history
+            WHERE phone_number = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        ) subquery
+        ORDER BY created_at ASC;
+    """
+    cols, rows = execute_read_query(query, (phone_number, limit))
+    history = []
+    for row in rows:
+        history.append({
+            "role": row[0],
+            "content": row[1]
+        })
+    return history
+

@@ -93,10 +93,26 @@ def run_sql_query_tool(query: str) -> str:
     except Exception as e:
         return f"Error executing query: {str(e)}"
 
+@tool
+def send_whatsapp_message_tool(phone_number: str, message_body: str) -> str:
+    """
+    Sends a WhatsApp message to a specific phone number.
+    Use this tool when you need to contact a venue coordinator, manager, or owner to ask for missing information, schedule site visits, or send notifications.
+    The phone_number must include country code (e.g. '+263770000000').
+    """
+    try:
+        from app.services.whatsapp import send_whatsapp_message
+        res = send_whatsapp_message(phone_number, message_body)
+        return f"Successfully sent WhatsApp message to {phone_number}. Response: {res}"
+    except Exception as e:
+        return f"Failed to send WhatsApp message to {phone_number}: {str(e)}"
+
 # List of tools to export
 tools = [
     get_current_time,
     list_tables_tool,
     get_table_schema_tool,
-    run_sql_query_tool
+    run_sql_query_tool,
+    send_whatsapp_message_tool
 ]
+
