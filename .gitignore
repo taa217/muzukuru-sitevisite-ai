@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+backend/.venv/
+.venv/
+venv/
+env/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+backend/dist/
+frontend/dist/
+
+# Local environment variables and secrets
+.env
+.env*.local
+backend/.env
+backend/.env.local
+frontend/.env
+frontend/.env.local
+
+# Python cache / compiled bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# System / Editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Large temporary files or specific internal database backups
+backend/SDOC-*
+SDOC-*
