@@ -136,7 +136,7 @@ async def auto_check_venue_and_message_contact(venue_id: int):
     """
     Background task that waits 10 seconds, then queries the agent
     to inspect the newly created venue, find missing details, and send a WhatsApp message
-    to +263780642578 asking for the missing info.
+    to +263781646052 asking for the missing info.
     """
     logger.info(f"Background task triggered for venue ID: {venue_id}. Waiting 10 seconds...")
     await asyncio.sleep(10)
@@ -153,9 +153,10 @@ async def auto_check_venue_and_message_contact(venue_id: int):
             content=(
                 f"Automated trigger: A new venue with database ID {venue_id} has been added. "
                 "Please inspect the venue_venue table for this venue using run_sql_query_tool. "
-                "Identify if there is any missing information (such as capacity, address, power, internet details, etc.). "
-                "If there are missing fields, send a WhatsApp message to the coordinator at '+263780642578' "
-                "asking them to provide the missing details. Use the send_whatsapp_message_tool."
+                "Identify if there is any missing information (such as capacity, address_one, power, wifi, or internet details). "
+                "If there are missing fields, start a conversational WhatsApp chat with the coordinator at '+263781646052' "
+                "by asking them for ONLY ONE missing detail (e.g. start with the address_one or capacity) in a friendly, polite message. "
+                "Use the send_whatsapp_message_tool."
             )
         )
         

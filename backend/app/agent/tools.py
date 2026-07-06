@@ -102,7 +102,9 @@ def send_whatsapp_message_tool(phone_number: str, message_body: str) -> str:
     """
     try:
         from app.services.whatsapp import send_whatsapp_message
+        from app.agent.db import save_whatsapp_message
         res = send_whatsapp_message(phone_number, message_body)
+        save_whatsapp_message(phone_number, "assistant", message_body)
         return f"Successfully sent WhatsApp message to {phone_number}. Response: {res}"
     except Exception as e:
         return f"Failed to send WhatsApp message to {phone_number}: {str(e)}"
