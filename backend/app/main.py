@@ -10,6 +10,35 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
 
+CONTACTS = {
+    "+263781646052": {"name": "Clyde", "role": "CEO", "is_crew": True},
+    "+263780812222": {"name": "Byron", "role": "Crew member", "is_crew": True},
+    "+2630642578": {"name": "Cris", "role": "Technical staff", "is_crew": True},
+    "+263788918512": {"name": "Nigel", "role": "Client / Venue coordinator", "is_crew": False},
+    "+263774043440": {"name": "Cama", "role": "Company manager", "is_crew": True},
+    "+2638344511": {"name": "Nashel", "role": "Crew member", "is_crew": True},
+}
+
+def get_contact_info(phone_number: str) -> Dict[str, Any]:
+    # Clean digits to match robustly
+    digits = "".join([c for c in phone_number if c.isdigit()])
+    if digits.startswith("263") and len(digits) > 3:
+        local_part = digits[3:]
+    else:
+        local_part = digits
+        
+    for num, info in CONTACTS.items():
+        num_digits = "".join([c for c in num if c.isdigit()])
+        if num_digits.startswith("263") and len(num_digits) > 3:
+            num_local = num_digits[3:]
+        else:
+            num_local = num_digits
+            
+        if local_part == num_local:
+            return info
+            
+    return {"name": "Unknown", "role": "Client / Venue coordinator", "is_crew": False}
+
 # Import agent graph builder
 try:
     from app.agent.graph import get_agent_graph
@@ -131,12 +160,12 @@ class VenueCreate(BaseModel):
     wifi_password: str | None = None
     has_pa_system: bool = False
     pa_system_provider: str | None = None
-
 async def auto_check_venue_and_message_contact(venue_id: int):
     """
     Background task that waits 10 seconds, then queries the agent
-    to inspect the newly created venue, find missing details, and send a WhatsApp message
-    to +263781646052 asking for the missing info.
+    to inspect the newly created venue, notify the crew members about it,
+    ask Cris about technical requirements, and ask the client Nigel
+    about power and coordinator details.
     """
     logger.info(f"Background task triggered for venue ID: {venue_id}. Waiting 10 seconds...")
     await asyncio.sleep(10)
@@ -148,15 +177,16 @@ async def auto_check_venue_and_message_contact(venue_id: int):
             
         agent = get_agent_graph()
         
-        # Invoke agent with system prompt instruction to inspect venue_id and message contact
+        # Invoke agent with system prompt instruction to inspect venue_id and perform coordination
         instruction_msg = HumanMessage(
             content=(
-                f"Automated trigger: A new venue with database ID {venue_id} has been added. "
-                "Please inspect the venue_venue table for this venue using run_sql_query_tool. "
-                "Identify if there is any missing information (such as capacity, address_one, power, wifi, or internet details). "
-                "If there are missing fields, start a conversational WhatsApp chat with the coordinator at '+263781646052' "
-                "by asking them for ONLY ONE missing detail (e.g. start with the address_one or capacity) in a friendly, polite message. "
-                "Use the send_whatsapp_message_tool."
+                f"Automated trigger: A new venue with database ID {venue_id} has been added.\n"
+                "Please perform the following coordination tasks:\n"
+                "1. Use `run_sql_query_tool` to inspect the `venue_venue` table for this venue to gather the necessary details (e.g. name, city, address, capacity, etc.).\n"
+                "2. Inform the crew (Clyde: +263781646052, Cama: +263774043440, Byron: +263780812222, Nashel: +2638344511) about the newly added venue. Use `send_whatsapp_message_tool` and a friendly, joking, buddy-like tone.\n"
+                "3. Message Cris (+2630642578) in a friendly, joking buddy tone to ask about technical requirements (cameras/gear needed, what is working and what is not).\n"
+                "4. Message the client/venue coordinator Nigel (+263788918512) in a highly professional, polite tone to ask about details like capacity, power situation (available power, backup power details), wifi/internet service provider, or internet upload speed. Also ask if there's any other venue coordinator we should contact.\n"
+                "Ensure you use `send_whatsapp_message_tool` for each contact."
             )
         )
         
@@ -343,6 +373,7 @@ async def receive_whatsapp_webhook(request: Request):
     if not sender or not message_body:
         return {"status": "ignored", "reason": "No sender or message found"}
         
+
     try:
         # 1. Save user's message to database history
         save_whatsapp_message(sender, "user", message_body)
@@ -350,8 +381,22 @@ async def receive_whatsapp_webhook(request: Request):
         # 2. Get past history for this sender (including the message we just saved)
         db_history = get_whatsapp_chat_history(sender, limit=20)
         
-        # 3. Convert history to LangChain messages format
-        langchain_messages = []
+        # Retrieve sender name, role, and crew status to inject context
+        info = get_contact_info(sender)
+        sender_name = info["name"]
+        sender_role = info["role"]
+        is_crew = info["is_crew"]
+        
+        # 3. Convert history to LangChain messages format, starting with a SystemMessage context
+        langchain_messages = [
+            SystemMessage(
+                content=(
+                    f"You are currently conversing via WhatsApp with {sender_name} at phone number {sender} (Role: {sender_role}).\n"
+                    f"Their relation to the company: {'Crew/Staff Member (internal)' if is_crew else 'Client/Venue Coordinator (external)'}.\n"
+                    f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, and formal'} tone with them."
+                )
+            )
+        ]
         for msg in db_history:
             if msg["role"] == "user":
                 langchain_messages.append(HumanMessage(content=msg["content"]))
