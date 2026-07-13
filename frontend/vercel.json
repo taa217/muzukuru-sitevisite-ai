@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://sitevisit-backend.onrender.com"
+      "destination": "https://sitevisit-backend.onrender.com/api/$1"
     },
     {
       "source": "/((?!api/).*)",
