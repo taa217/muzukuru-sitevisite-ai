@@ -1,9 +1,9 @@
 {
-  "version": 2,
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "https://your-backend-url.onrender.com/api/$1"
     },
     {
       "source": "/((?!api/).*)",
