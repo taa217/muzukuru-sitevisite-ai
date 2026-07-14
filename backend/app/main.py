@@ -376,10 +376,17 @@ async def receive_whatsapp_webhook(request: Request):
 
     try:
         # 1. Save user's message to database history
-        save_whatsapp_message(sender, "user", message_body)
+        try:
+            save_whatsapp_message(sender, "user", message_body)
+        except Exception as db_err:
+            logger.warning(f"Failed to save user WhatsApp message to DB: {db_err}")
         
         # 2. Get past history for this sender (including the message we just saved)
-        db_history = get_whatsapp_chat_history(sender, limit=20)
+        try:
+            db_history = get_whatsapp_chat_history(sender, limit=20)
+        except Exception as db_err:
+            logger.warning(f"Failed to get WhatsApp chat history from DB: {db_err}")
+            db_history = []
         
         # Retrieve sender name, role, and crew status to inject context
         info = get_contact_info(sender)
@@ -397,11 +404,20 @@ async def receive_whatsapp_webhook(request: Request):
                 )
             )
         ]
+        
+        # Convert history and verify if current message is in history (to prevent duplicates)
+        has_current_message = False
         for msg in db_history:
             if msg["role"] == "user":
                 langchain_messages.append(HumanMessage(content=msg["content"]))
+                if msg["content"] == message_body:
+                    has_current_message = True
             elif msg["role"] == "assistant":
                 langchain_messages.append(AIMessage(content=msg["content"]))
+                
+        # If DB connection failed or current message is not in history, append it
+        if not has_current_message:
+            langchain_messages.append(HumanMessage(content=message_body))
                 
         # 4. Invoke the AI Agent Graph
         if get_agent_graph is None:
@@ -419,7 +435,10 @@ async def receive_whatsapp_webhook(request: Request):
         ai_response = extract_message_content(final_message.content)
         
         # 6. Save agent's reply to database history
-        save_whatsapp_message(sender, "assistant", ai_response)
+        try:
+            save_whatsapp_message(sender, "assistant", ai_response)
+        except Exception as db_err:
+            logger.warning(f"Failed to save assistant WhatsApp reply to DB: {db_err}")
         
         # 7. Send message back to user via WhatsApp
         send_whatsapp_message(sender, ai_response)

@@ -104,7 +104,11 @@ def send_whatsapp_message_tool(phone_number: str, message_body: str) -> str:
         from app.services.whatsapp import send_whatsapp_message
         from app.agent.db import save_whatsapp_message
         res = send_whatsapp_message(phone_number, message_body)
-        save_whatsapp_message(phone_number, "assistant", message_body)
+        try:
+            save_whatsapp_message(phone_number, "assistant", message_body)
+        except Exception as db_err:
+            import logging
+            logging.getLogger(__name__).warning(f"Failed to save sent WhatsApp message to DB: {db_err}")
         return f"Successfully sent WhatsApp message to {phone_number}. Response: {res}"
     except Exception as e:
         return f"Failed to send WhatsApp message to {phone_number}: {str(e)}"
