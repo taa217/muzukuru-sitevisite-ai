@@ -60,6 +60,9 @@ function App() {
   // Tab State
   const [activeTab, setActiveTab] = useState<'chat' | 'venues' | 'add_venue'>('chat');
 
+  // Mobile Chat sub-tab toggle (Chat vs Active Schedule)
+  const [mobileChatSubTab, setMobileChatSubTab] = useState<'chat' | 'visits'>('chat');
+
   // Venues State
   const [venues, setVenues] = useState<Venue[]>([]);
   const [isVenuesLoading, setIsVenuesLoading] = useState(false);
@@ -662,7 +665,24 @@ function App() {
       {/* MAIN VIEW AREA */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         {activeTab === 'chat' ? (
-          <div className="app-container" style={{ display: 'flex', flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+          <div className={`app-container ${mobileChatSubTab === 'chat' ? 'show-chat-view' : 'show-visits-view'}`}>
+            {/* Mobile Sub-Navigation Toggle Bar */}
+            <div className="mobile-chat-toggle-bar">
+              <button
+                type="button"
+                className={`toggle-bar-btn ${mobileChatSubTab === 'chat' ? 'active' : ''}`}
+                onClick={() => setMobileChatSubTab('chat')}
+              >
+                Chat Assistant
+              </button>
+              <button
+                type="button"
+                className={`toggle-bar-btn ${mobileChatSubTab === 'visits' ? 'active' : ''}`}
+                onClick={() => setMobileChatSubTab('visits')}
+              >
+                Active Schedule ({filteredVisits.length})
+              </button>
+            </div>
             {/* LEFT PANEL: Overview Dashboard */}
             <aside className="dashboard-panel">
               <div className="brand-section">
@@ -1174,9 +1194,9 @@ function App() {
             </header>
 
             {/* TWO COLUMN CONTENT */}
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div className="add-venue-layout">
               {/* LEFT COLUMN: WIZARD FORM (2/3 width) */}
-              <div style={{ flex: 2, padding: '2rem', overflowY: 'auto', borderRight: '1px solid var(--border-light)' }}>
+              <div className="add-venue-form-col">
                 {/* Stepper Card */}
                 <div className="form-wizard-card" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-light)', overflow: 'hidden', boxShadow: '0 4px 15px rgba(92,62,48,0.08)' }}>
                   {/* Stepper Header Banner */}
@@ -1255,11 +1275,23 @@ function App() {
                           }}>
                             {item.step}
                           </div>
-                          <span style={{ fontSize: '0.65rem', color: '#faf8f5', marginTop: '0.4rem', fontWeight: 600, textAlign: 'center' }}>
+                          <span className="stepper-step-label" style={{ fontSize: '0.65rem', color: '#faf8f5', marginTop: '0.4rem', fontWeight: 600, textAlign: 'center' }}>
                             {item.label}
                           </span>
                         </div>
                       ))}
+                    </div>
+                    
+                    {/* Mobile-only Step Summary Label */}
+                    <div className="mobile-step-indicator-text">
+                      Step {formStep} of 6: {[
+                        'Venue Essentials',
+                        'Power',
+                        'Internet & Network',
+                        'PA Systems',
+                        'Rooms',
+                        'Contacts'
+                      ][formStep - 1]}
                     </div>
                   </div>
 
@@ -1268,7 +1300,7 @@ function App() {
                     {/* STEP 1: Venue Essentials */}
                     {formStep === 1 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                        <div className="form-grid-3">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Venue Name <span style={{ color: 'red' }}>*</span></label>
                             <input
@@ -1312,7 +1344,7 @@ function App() {
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                        <div className="form-grid-3">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Address One</label>
                             <input
@@ -1350,7 +1382,7 @@ function App() {
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+                        <div className="form-grid-1-2">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>City</label>
                             <select
@@ -1406,7 +1438,7 @@ function App() {
                           </label>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        <div className="form-grid-2">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Power Connection Type</label>
                             <input
@@ -1440,7 +1472,7 @@ function App() {
                     {/* STEP 3: Internet & Network */}
                     {formStep === 3 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        <div className="form-grid-2">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Internet Service Provider (ISP)</label>
                             <select
@@ -1459,7 +1491,7 @@ function App() {
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                        <div className="form-grid-2">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Wifi Network Name (SSID)</label>
                             <input
@@ -1582,7 +1614,7 @@ function App() {
               </div>
 
               {/* RIGHT COLUMN: SUMMARY SIDEBAR (1/3 width) */}
-              <div style={{ flex: 1, padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', background: 'rgba(250,248,245,0.4)', overflowY: 'auto' }}>
+              <div className="add-venue-summary-col">
                 {/* Completeness Card */}
                 <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-light)', padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 12px rgba(92,62,48,0.06)' }}>
                   <div>
