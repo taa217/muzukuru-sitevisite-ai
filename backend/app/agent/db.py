@@ -8,6 +8,9 @@ def get_db_connection():
     Establishes and returns a connection to the PostgreSQL database
     using configuration from environment variables.
     """
+    db_url = os.getenv("DATABASE_URL")
+    if db_url:
+        return psycopg2.connect(db_url)
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
         port=os.getenv("DB_PORT", "5432"),
