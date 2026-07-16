@@ -14,7 +14,7 @@ CONTACTS = {
     "+263781646052": {"name": "Clyde", "role": "CEO", "is_crew": True},
     "+263788918512": {"name": "Nigel", "role": "Client / Venue coordinator", "is_crew": False},
     "+263772413471": {"name": "Joe", "role": "Crew member", "is_crew": True},
-    "+263718344511": {"name": "Nashel", "role": "Crew member", "is_crew": True},
+    "+263718834117": {"name": "Max", "role": "Crew member", "is_crew": True},
 }
 
 def get_contact_info(phone_number: str) -> Dict[str, Any]:
@@ -181,7 +181,7 @@ async def auto_check_venue_and_message_contact(venue_id: int):
                 f"Automated trigger: A new venue with database ID {venue_id} has been added.\n"
                 "Please perform the following coordination tasks:\n"
                 "1. Use `run_sql_query_tool` to inspect the `venue_venue` table for this venue to gather the necessary details (e.g. name, city, address, capacity, etc.).\n"
-                "2. Inform the crew (Clyde: +263781646052, Joe: +263772413471, Nashel: +263718344511) about the newly added venue. Use `send_whatsapp_message_tool` and a friendly, joking, buddy-like tone. In this message, explicitly tell the crew that you are now messaging the client Nigel (+263788918512) to acquire details.\n"
+                "2. Inform the crew (Clyde: +263781646052, Joe: +263772413471, Max: +263718834117) about the newly added venue. Use `send_whatsapp_message_tool` and a friendly, joking, buddy-like tone. In this message, explicitly tell the crew that you are now messaging the client Nigel (+263788918512) to acquire details.\n"
                 "3. Message the client/venue coordinator Nigel (+263788918512) in a highly conversational, polite, and warm tone. Dynamically generate a friendly message that introduces yourself as Muzukuru from Muzukuru Funeral (preparing for the service, acknowledging they are the venue coordinator, and asking for details like capacity, power, backup power, wifi/internet to ensure the best service). Do not tell the client about database tables, venue IDs, or completeness scores; keep it purely conversational.\n"
                 "Ensure you use `send_whatsapp_message_tool` for each contact."
             )
