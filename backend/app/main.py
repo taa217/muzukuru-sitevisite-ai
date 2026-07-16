@@ -11,9 +11,9 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 logger = logging.getLogger(__name__)
 
 CONTACTS = {
-    "+263781646052": {"name": "Clyde", "role": "CEO", "is_crew": True},
+    "+263781646052": {"name": "Clyde", "role": "Crew member", "is_crew": True},
     "+263788918512": {"name": "Nigel", "role": "Client / Venue coordinator", "is_crew": False},
-    "+263772413471": {"name": "Joe", "role": "Crew member", "is_crew": True},
+    "+263772413471": {"name": "Joe", "role": "CEO", "is_crew": True},
     "+263718834117": {"name": "Max", "role": "Crew member", "is_crew": True},
 }
 
