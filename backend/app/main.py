@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 CONTACTS = {
     "+263781646052": {"name": "Clyde", "role": "Crew member", "is_crew": True},
-    "+263788918512": {"name": "Nigel", "role": "Client / Venue coordinator", "is_crew": False},
+    "+263717713380": {"name": "Mr Muza", "role": "Client / Venue coordinator", "is_crew": False},
     "+263772413471": {"name": "Joe", "role": "CEO", "is_crew": True},
     "+263718834117": {"name": "Max", "role": "Crew member", "is_crew": True},
 }
@@ -181,8 +181,11 @@ async def auto_check_venue_and_message_contact(venue_id: int):
                 f"Automated trigger: A new venue with database ID {venue_id} has been added.\n"
                 "Please perform the following coordination tasks:\n"
                 "1. Use `run_sql_query_tool` to inspect the `venue_venue` table for this venue to gather the necessary details (e.g. name, city, address, capacity, etc.).\n"
-                "2. Inform the crew (Clyde: +263781646052, Joe: +263772413471, Max: +263718834117) about the newly added venue. Use `send_whatsapp_message_tool` and a friendly, joking, buddy-like tone. In this message, explicitly tell the crew that you are now messaging the client Nigel (+263788918512) to acquire details.\n"
-                "3. Message the client/venue coordinator Nigel (+263788918512) in a highly conversational, polite, and warm tone. Dynamically generate a friendly message that introduces yourself as Muzukuru from Muzukuru Funeral (preparing for the service, acknowledging they are the venue coordinator, and asking for details like capacity, power, backup power, wifi/internet to ensure the best service). Do not tell the client about database tables, venue IDs, or completeness scores; keep it purely conversational.\n"
+                "2. Inform the crew (Clyde: +263781646052, Joe: +263772413471, Max: +263718834117) about the newly added venue. Use `send_whatsapp_message_tool` and a friendly, joking, buddy-like tone. In this message, explicitly tell the crew that you are now messaging the client Mr Muza (+263717713380) to acquire details.\n"
+                "3. Message the client/venue coordinator Mr Muza (+263717713380) using `send_whatsapp_message_tool`. Keep the message concise, warm, intuitive, and visually clean so Mr Muza is not overwhelmed. Introduce yourself briefly as Muzukuru from Muzukuru Funeral (coordinating logistics for the upcoming service at the venue), and ask for only 2 key details using clean WhatsApp markdown formatting:\n"
+                "   - *Power & Generator:* Does the venue have reliable backup power/generator setup?\n"
+                "   - *Wi-Fi Connectivity:* Is internet/Wi-Fi available for the crew?\n"
+                "Do NOT ask for an exhaustive list of fields or mention database tables, IDs, or completeness scores.\n"
                 "Ensure you use `send_whatsapp_message_tool` for each contact."
             )
         )
@@ -397,7 +400,11 @@ async def receive_whatsapp_webhook(request: Request):
                 content=(
                     f"You are currently conversing via WhatsApp with {sender_name} at phone number {sender} (Role: {sender_role}).\n"
                     f"Their relation to the company: {'Crew/Staff Member (internal)' if is_crew else 'Client/Venue Coordinator (external)'}.\n"
-                    f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, and formal'} tone with them."
+                    f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, and formal'} tone with them.\n"
+                    + (
+                        "Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-3 questions at a time so they are never overwhelmed."
+                        if not is_crew else ""
+                    )
                 )
             )
         ]
