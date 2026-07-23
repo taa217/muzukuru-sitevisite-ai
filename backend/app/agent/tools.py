@@ -1,3 +1,10 @@
+import warnings
+# Suppress the duckduckgo_search renaming warnings to keep logs clean
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", message=".*duckduckgo_search.*")
+warnings.filterwarnings("ignore", message=".*ddgs.*")
+warnings.filterwarnings("ignore", message=".*renamed to.*")
+
 from langchain_core.tools import tool
 import datetime
 from app.agent.db import execute_read_query, execute_write_query
@@ -113,12 +120,96 @@ def send_whatsapp_message_tool(phone_number: str, message_body: str) -> str:
     except Exception as e:
         return f"Failed to send WhatsApp message to {phone_number}: {str(e)}"
 
+@tool
+def search_internet_tool(query: str, max_results: int = 5) -> str:
+    """
+    Search the internet for a given query and return a list of matching results with titles, URLs, and snippets.
+    Use this tool when you need to find information that is not available in the database (such as contact info, location details, rates, or general facts about a venue/location).
+    """
+    try:
+        from ddgs import DDGS
+        with DDGS() as ddgs:
+            results = ddgs.text(query, max_results=max_results)
+            if not results:
+                return f"No results found on the internet for query: '{query}'."
+            
+            output = f"Internet search results for '{query}':\n\n"
+            for i, r in enumerate(results, 1):
+                output += f"{i}. Title: {r.get('title')}\n"
+                output += f"   URL: {r.get('href')}\n"
+                output += f"   Snippet: {r.get('body')}\n\n"
+            return output
+    except Exception as e:
+        # Fallback to the old package if ddgs import/call fails
+        try:
+            import warnings
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            from duckduckgo_search import DDGS as OldDDGS
+            with OldDDGS() as ddgs:
+                results = ddgs.text(query, max_results=max_results)
+                if not results:
+                    return f"No results found on the internet for query: '{query}'."
+                output = f"Internet search results for '{query}':\n\n"
+                for i, r in enumerate(results, 1):
+                    output += f"{i}. Title: {r.get('title')}\n"
+                    output += f"   URL: {r.get('href')}\n"
+                    output += f"   Snippet: {r.get('body')}\n\n"
+                return output
+        except Exception as e2:
+            return f"Error searching the internet: {str(e)} (Fallback error: {str(e2)})"
+
+@tool
+def scrape_website_tool(url: str) -> str:
+    """
+    Scrapes the text content of a given website URL.
+    Use this tool when you have a specific URL (e.g. from search results) and need to read its detailed content or rules.
+    """
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        
+        # Add basic protocol if missing
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
+            
+        res = requests.get(url, headers=headers, timeout=15)
+        res.raise_for_status()
+        
+        soup = BeautifulSoup(res.text, "html.parser")
+        
+        # Remove navigation, footer, scripts, styles, etc. to clean content
+        for element in soup(["script", "style", "nav", "footer", "header", "iframe", "noscript"]):
+            element.decompose()
+            
+        # Get text and clean whitespace
+        text = soup.get_text(separator="\n")
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        cleaned_text = "\n".join(chunk for chunk in chunks if chunk)
+        
+        # Limit result size to avoid context length overflow (approx 8000 chars)
+        if len(cleaned_text) > 8000:
+            return cleaned_text[:8000] + "\n\n(Note: Webpage content was truncated to 8000 characters to prevent message overflow.)"
+        
+        if not cleaned_text:
+            return f"Webpage at {url} was successfully retrieved but no readable text could be extracted."
+            
+        return f"Content of webpage {url}:\n\n{cleaned_text}"
+    except Exception as e:
+        return f"Error scraping website {url}: {str(e)}"
+
 # List of tools to export
 tools = [
     get_current_time,
     list_tables_tool,
     get_table_schema_tool,
     run_sql_query_tool,
-    send_whatsapp_message_tool
+    send_whatsapp_message_tool,
+    search_internet_tool,
+    scrape_website_tool
 ]
 
