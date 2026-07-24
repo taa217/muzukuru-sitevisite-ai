@@ -117,4 +117,40 @@ export async function createVenue(venue: Partial<Venue>): Promise<{ status: stri
   return response.json();
 }
 
+export interface CreateSiteVisitPayload {
+  venue_id: number;
+  scheduled_date_time?: string | null;
+  notes?: string | null;
+  status?: string;
+}
+
+/**
+ * Create a new site visit booking in the backend database (triggers AI venue check)
+ */
+export async function createSiteVisit(payload: CreateSiteVisitPayload): Promise<{ status: string; id: string }> {
+  const response = await fetch('/api/venue/site-visits', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let errorMessage = `HTTP error! status: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      if (errorData?.detail) {
+        errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
+      }
+    } catch {
+      // ignore json parse error
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+}
+
+
 

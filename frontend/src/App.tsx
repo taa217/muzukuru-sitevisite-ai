@@ -32,7 +32,7 @@ import {
   Trash,
   Image as ImageIcon
 } from 'lucide-react';
-import { chatWithAgent, getSiteVisits, getVenues, createVenue } from './api';
+import { chatWithAgent, getSiteVisits, getVenues, createVenue, createSiteVisit } from './api';
 import type { ChatMessage, SiteVisit, Venue } from './api';
 
 interface ContentBlock {
@@ -58,7 +58,16 @@ function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'chat' | 'venues' | 'add_venue'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'venues' | 'add_venue' | 'add_booking'>('chat');
+
+  // Form State for Adding a Booking
+  const [bookingVenueId, setBookingVenueId] = useState<string>('');
+  const [bookingDateTime, setBookingDateTime] = useState<string>('');
+  const [bookingNotes, setBookingNotes] = useState<string>('');
+  const [bookingStatus, setBookingStatus] = useState<string>('scheduled');
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState<boolean>(false);
+  const [bookingSuccessMsg, setBookingSuccessMsg] = useState<string | null>(null);
+  const [bookingFormError, setBookingFormError] = useState<string | null>(null);
 
   // Mobile Chat sub-tab toggle (Chat vs Active Schedule)
   const [mobileChatSubTab, setMobileChatSubTab] = useState<'chat' | 'visits'>('chat');
@@ -218,6 +227,50 @@ function App() {
       alert(`Error saving venue: ${err.message || err.toString()}`);
     } finally {
       setIsSubmittingVenue(false);
+    }
+  };
+
+  const handleSaveBooking = async () => {
+    if (!bookingVenueId) {
+      setBookingFormError("Please select a venue from the database.");
+      return;
+    }
+
+    setBookingFormError(null);
+    setIsSubmittingBooking(true);
+    setBookingSuccessMsg(null);
+
+    try {
+      const isoDateTime = bookingDateTime ? new Date(bookingDateTime).toISOString() : null;
+
+      await createSiteVisit({
+        venue_id: parseInt(bookingVenueId, 10),
+        scheduled_date_time: isoDateTime,
+        notes: bookingNotes.trim() || null,
+        status: bookingStatus
+      });
+
+      const selectedVenueObj = venues.find(v => v.id === bookingVenueId);
+      const venueName = selectedVenueObj ? selectedVenueObj.name : 'Selected Venue';
+
+      setBookingSuccessMsg(
+        `Booking successfully saved to DB for "${venueName}"! Nyasha (AI Assistant) is now triggered to inspect the venue in DB and contact venue coordinator Mr Muza (+263788918512) via WhatsApp.`
+      );
+
+      // Reset form fields
+      setBookingVenueId('');
+      setBookingDateTime('');
+      setBookingNotes('');
+      setBookingStatus('scheduled');
+
+      // Refresh data
+      await loadSiteVisits();
+      await loadVenues();
+    } catch (err: any) {
+      console.error("Failed to save booking:", err);
+      setBookingFormError(`Error saving booking: ${err.message || err.toString()}`);
+    } finally {
+      setIsSubmittingBooking(false);
     }
   };
 
@@ -643,8 +696,12 @@ function App() {
             <LayoutGrid size={20} />
           </button>
 
-          <button className="sidebar-btn" disabled title="Metrics (Disabled)">
-            <LineChart size={20} />
+          <button
+            onClick={() => setActiveTab('add_booking')}
+            className={`sidebar-btn ${activeTab === 'add_booking' ? 'active' : ''}`}
+            title="Book Site Visit (Venue in DB)"
+          >
+            <CalendarClock size={20} />
           </button>
 
           <button className="sidebar-btn" disabled title="Properties (Disabled)">
@@ -1012,7 +1069,17 @@ function App() {
               </div>
 
               <div className="filter-actions">
-                <button className="btn-allocate" disabled>ALLOCATE SITE VISIT</button>
+                <button
+                  className="btn-allocate"
+                  onClick={() => {
+                    setBookingSuccessMsg(null);
+                    setBookingFormError(null);
+                    setActiveTab('add_booking');
+                  }}
+                >
+                  <CalendarClock size={14} style={{ marginRight: '0.35rem' }} />
+                  <span>CREATE BOOKING</span>
+                </button>
                 <button className="btn-add-venue" onClick={() => {
                   setFormStep(1);
                   setFormErrors({});
@@ -1693,6 +1760,355 @@ function App() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'add_booking' && (
+          <div className="venues-dashboard" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
+            {/* HEADER */}
+            <header className="venues-header">
+              <div className="venues-title-section">
+                <h1>Bookings</h1>
+                <span className="venues-breadcrumb">Venues / Bookings / Create Booking</span>
+              </div>
+
+              <div className="venues-header-center">
+                <button className="header-home-btn" onClick={() => setActiveTab('chat')} title="Go to Chat">
+                  <Home size={16} />
+                </button>
+                <button className="header-home-btn" onClick={() => setActiveTab('venues')} title="Go to Venues">
+                  <LayoutGrid size={16} />
+                </button>
+              </div>
+
+              <div className="venues-header-right">
+                <div className="profile-capsule">
+                  <div className="profile-avatar-circle">C</div>
+                  <span>clyde@muzukuru.com</span>
+                </div>
+              </div>
+            </header>
+
+            {/* TWO COLUMN BOOKINGS CONTENT */}
+            <div className="add-venue-layout" style={{ overflowY: 'auto', padding: '1.5rem' }}>
+              {/* LEFT COLUMN: BOOKING FORM */}
+              <div className="add-venue-form-col" style={{ flex: 2 }}>
+                {bookingSuccessMsg && (
+                  <div style={{
+                    padding: '1rem 1.25rem',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(46, 125, 50, 0.08)',
+                    border: '1px solid var(--color-success)',
+                    color: 'var(--color-success)',
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.75rem',
+                    fontSize: '0.88rem',
+                    lineHeight: '1.4'
+                  }}>
+                    <Check size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <div>
+                      <div style={{ fontWeight: 700, marginBottom: '0.2rem' }}>Booking Saved & AI Triggered</div>
+                      <span>{bookingSuccessMsg}</span>
+                    </div>
+                  </div>
+                )}
+
+                {bookingFormError && (
+                  <div style={{
+                    padding: '1rem 1.25rem',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid var(--color-error)',
+                    color: 'var(--color-error)',
+                    marginBottom: '1.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    fontSize: '0.88rem'
+                  }}>
+                    <AlertCircle size={20} />
+                    <span>{bookingFormError}</span>
+                  </div>
+                )}
+
+                <div style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid var(--border-light)',
+                  padding: '2rem',
+                  boxShadow: '0 4px 15px rgba(92,62,48,0.08)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem' }}>
+                    <CalendarClock size={22} style={{ color: 'var(--color-primary)' }} />
+                    <div>
+                      <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-dark)' }}>Schedule Site Visit Booking</h2>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Select a venue already stored in the database. Saving the booking will automatically trigger Nyasha (AI Assistant) to contact the venue coordinator for missing info.
+                      </p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={(e) => { e.preventDefault(); handleSaveBooking(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {/* VENUE SELECTOR FROM DB */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Select Venue from Database <span style={{ color: 'red' }}>*</span>
+                      </label>
+                      <select
+                        value={bookingVenueId}
+                        onChange={(e) => setBookingVenueId(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1rem',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.9rem',
+                          outline: 'none',
+                          backgroundColor: '#faf8f5',
+                          fontWeight: 500
+                        }}
+                      >
+                        <option value="">-- Choose a Venue in Database --</option>
+                        {venues.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name} ({v.city || 'Harare'}) - {v.completeness_score}% DB Completeness
+                          </option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {venues.length} venue(s) currently available in database.
+                      </span>
+                    </div>
+
+                    {/* SCHEDULE DATE & TIME */}
+                    <div className="form-grid-2">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          Scheduled Date & Time
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={bookingDateTime}
+                          onChange={(e) => setBookingDateTime(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.7rem 0.9rem',
+                            borderRadius: '10px',
+                            border: '1px solid var(--border-light)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                          Booking Status
+                        </label>
+                        <select
+                          value={bookingStatus}
+                          onChange={(e) => setBookingStatus(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.7rem 0.9rem',
+                            borderRadius: '10px',
+                            border: '1px solid var(--border-light)',
+                            fontSize: '0.88rem',
+                            outline: 'none'
+                          }}
+                        >
+                          <option value="scheduled">Scheduled</option>
+                          <option value="pending">Pending</option>
+                          <option value="confirmed">Confirmed</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* NOTES & LOGISTICS */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                        Booking Notes & Requirements
+                      </label>
+                      <textarea
+                        rows={4}
+                        placeholder="e.g. Service logistics setup, stream audio & camera positioning, checking venue power switches..."
+                        value={bookingNotes}
+                        onChange={(e) => setBookingNotes(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 0.9rem',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '0.88rem',
+                          outline: 'none',
+                          fontFamily: 'inherit'
+                        }}
+                      ></textarea>
+                    </div>
+
+                    {/* SUBMIT BUTTON */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('venues')}
+                        style={{
+                          padding: '0.7rem 1.25rem',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-light)',
+                          background: 'transparent',
+                          color: 'var(--text-main)',
+                          fontSize: '0.88rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmittingBooking}
+                        className="btn-add-venue"
+                        style={{
+                          padding: '0.7rem 1.5rem',
+                          borderRadius: '10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          fontSize: '0.88rem'
+                        }}
+                      >
+                        <Sparkles size={16} />
+                        <span>{isSubmittingBooking ? 'Saving & Triggering AI...' : 'Save Booking & Trigger AI Outreach'}</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: SELECTED VENUE PREVIEW & AI TRIGGER GAP ANALYSIS */}
+              <div className="add-venue-summary-col" style={{ flex: 1 }}>
+                {bookingVenueId ? (
+                  (() => {
+                    const selectedVenue = venues.find(v => v.id === bookingVenueId);
+                    if (!selectedVenue) return null;
+                    const completeness = getCompletenessDetails(selectedVenue.completeness_score);
+
+                    const missingItems: string[] = [];
+                    if (!selectedVenue.has_power || !selectedVenue.power_backup) {
+                      missingItems.push("Backup Power (Generator/Solar info)");
+                    }
+                    if (!selectedVenue.internet_service_provider) {
+                      missingItems.push("Wi-Fi & Internet Service Provider");
+                    }
+                    if (!selectedVenue.capacity) {
+                      missingItems.push("Venue Guest Capacity");
+                    }
+                    if (!selectedVenue.has_pa_system) {
+                      missingItems.push("PA Sound System Details");
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Venue Summary Card */}
+                        <div style={{
+                          background: '#ffffff',
+                          borderRadius: '16px',
+                          border: '1px solid var(--border-light)',
+                          padding: '1.5rem',
+                          boxShadow: '0 4px 12px rgba(92,62,48,0.06)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                            <div>
+                              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-dark)' }}>{selectedVenue.name}</h3>
+                              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
+                                <MapPin size={12} />
+                                {selectedVenue.address_one || selectedVenue.city || 'Harare'}
+                              </p>
+                            </div>
+                            <span style={{
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '20px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: completeness.bg,
+                              color: completeness.color
+                            }}>
+                              {selectedVenue.completeness_score}% DB Score
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Type:</span>
+                              <span style={{ fontWeight: 600 }}>{selectedVenue.venue_type || 'General'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Power:</span>
+                              <span style={{ fontWeight: 600 }}>{selectedVenue.power_backup || (selectedVenue.has_power ? 'Grid Active' : 'Unspecified')}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'var(--text-muted)' }}>Wi-Fi:</span>
+                              <span style={{ fontWeight: 600 }}>{selectedVenue.internet_service_provider || 'Unspecified'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* AI Trigger Note & Gap Analysis */}
+                        <div style={{
+                          background: 'linear-gradient(135deg, #fef8f3, #fbf0e4)',
+                          borderRadius: '16px',
+                          border: '1px solid #ebd5c1',
+                          padding: '1.25rem',
+                          boxShadow: '0 4px 12px rgba(92,62,48,0.06)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', color: '#8c4b18', fontWeight: 700, fontSize: '0.88rem' }}>
+                            <Sparkles size={16} />
+                            <span>AI Coordinator Action Plan</span>
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: '#5c3e30', lineHeight: '1.45', marginBottom: '0.85rem' }}>
+                            When you save this booking, <strong>Nyasha (AI)</strong> will be triggered to check this venue in the DB and contact <strong>Mr Muza (+263788918512)</strong> via WhatsApp.
+                          </p>
+
+                          {missingItems.length > 0 ? (
+                            <div>
+                              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8c4b18', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
+                                Missing DB Details to Request:
+                              </div>
+                              <ul style={{ paddingLeft: '1.2rem', fontSize: '0.78rem', color: '#6e462d', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                {missingItems.map((item, i) => (
+                                  <li key={i}>{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '0.78rem', color: '#2e7d32', fontWeight: 600 }}>
+                              ✓ Venue DB records are already highly complete!
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div style={{
+                    background: '#ffffff',
+                    borderRadius: '16px',
+                    border: '1px dashed var(--border-light)',
+                    padding: '2.5rem 1.5rem',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)'
+                  }}>
+                    <Building size={40} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>No Venue Selected</h4>
+                    <p style={{ fontSize: '0.78rem' }}>
+                      Select a venue from the dropdown on the left to see its DB completeness score and missing details before booking.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

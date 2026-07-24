@@ -158,49 +158,53 @@ class VenueCreate(BaseModel):
     wifi_password: str | None = None
     has_pa_system: bool = False
     pa_system_provider: str | None = None
-async def auto_check_venue_and_message_contact(venue_id: int):
+
+class SiteVisitCreate(BaseModel):
+    venue_id: int
+    scheduled_date_time: str | None = None
+    notes: str | None = None
+    status: str = "scheduled"
+
+async def auto_trigger_booking_coordination(booking_id: int, venue_id: int):
     """
-    Background task that waits 10 seconds, then queries the agent
-    to inspect the newly created venue, notify the crew members about it,
-    ask Cris about technical requirements, and ask the client Nigel
-    about power and coordinator details.
+    Background task triggered when a new booking (site visit) is created for a venue in DB.
+    Waits 5 seconds, then queries the AI agent to inspect the venue and booking details in DB,
+    notifies crew members about the booking, and contacts venue coordinator Mr Muza (+263788918512)
+    via WhatsApp to request any missing database details (power backup, wifi, capacity, etc.).
     """
-    logger.info(f"Background task triggered for venue ID: {venue_id}. Waiting 10 seconds...")
-    await asyncio.sleep(10)
+    logger.info(f"Booking coordination task triggered for booking ID: {booking_id}, venue ID: {venue_id}. Waiting 5 seconds...")
+    await asyncio.sleep(5)
     
     try:
         if get_agent_graph is None:
-            logger.error("Agent graph is not initialized. Background check failed.")
+            logger.error("Agent graph is not initialized. Background booking check failed.")
             return
             
         agent = get_agent_graph()
         
-        # Invoke agent with system prompt instruction to inspect venue_id and perform coordination
         instruction_msg = HumanMessage(
             content=(
-                f"Automated trigger: A new venue with database ID {venue_id} has been added.\n"
+                f"Automated trigger: A new booking (site visit ID: {booking_id}) has been created for venue ID {venue_id}.\n"
                 "Please perform the following coordination tasks:\n"
-                "1. Use `run_sql_query_tool` to inspect the `venue_venue` table for this venue to gather the necessary details (e.g. name, city, address, capacity, etc.).\n"
-                "2. Inform the crew (Clyde: +263781646052, Leon: +263771453985, Max: +263718834117) about the newly added venue. Use `send_whatsapp_message_tool` and a friendly, joking, buddy-like tone. In this message, explicitly tell the crew that you are now messaging the client Mr Muza (+263788918512) to acquire details.\n"
-                "3. Message the client/venue coordinator Mr Muza (+263788918512) using `send_whatsapp_message_tool`. Keep the message concise, warm, intuitive, and visually clean so Mr Muza is not overwhelmed. Introduce yourself briefly as Nyasha from Muzukuru Funeral Services (coordinating logistics for the upcoming service at the venue), and ask for 2 key details in a clean numbered list (1. ..., 2. ...):\n"
-                "   1. *Backup Power:* Does the venue have a backup generator or power supply in case of electricity cuts?\n"
-                "   2. *Wi-Fi & Internet:* Is there Wi-Fi or internet connectivity available at the venue?\n"
+                f"1. Use `run_sql_query_tool` to inspect both `venue_sitevisit` (for site visit ID {booking_id}) and `venue_venue` (for venue ID {venue_id}) to gather venue and booking details.\n"
+                "2. Inform the crew (Clyde: +263781646052, Leon: +263771453985, Max: +263718834117) using `send_whatsapp_message_tool` about the newly booked site visit. Use a friendly, buddy-like, informal tone. Tell them the venue name, booking schedule/notes, and that you are now reaching out to the venue coordinator Mr Muza (+263788918512) to collect any missing venue information.\n"
+                "3. Message the client/venue coordinator Mr Muza (+263788918512) using `send_whatsapp_message_tool`. Keep the message concise, warm, professional, intuitive, and visually clean. Introduce yourself briefly as Nyasha from Muzukuru Funeral Services (coordinating logistics for the upcoming service at the venue). Ask for 2-3 key missing details (e.g. backup power, Wi-Fi, capacity, PA system) in a clean numbered list (`1. ...`, `2. ...`).\n"
                 "Do NOT ask dry shorthand questions like 'wifi connectivity..' or 'backup power'. Ask full, friendly, intuitive questions.\n"
-                "Do NOT ask for an exhaustive list of fields or mention database tables, IDs, or completeness scores.\n"
+                "Do NOT mention database tables, IDs, or completeness scores.\n"
                 "Ensure you use `send_whatsapp_message_tool` for each contact."
             )
         )
         
-        logger.info(f"Invoking agent graph for auto checking venue {venue_id}")
+        logger.info(f"Invoking agent graph for auto checking booking {booking_id} and venue {venue_id}")
         await agent.ainvoke({"messages": [instruction_msg]})
-        logger.info(f"Finished background check and message task for venue {venue_id}")
+        logger.info(f"Finished background check and message task for booking {booking_id} and venue {venue_id}")
         
     except Exception as e:
-        logger.error(f"Error in auto_check_venue_and_message_contact: {e}", exc_info=True)
+        logger.error(f"Error in auto_trigger_booking_coordination: {e}", exc_info=True)
 
 
 @app.post("/api/venues")
-def create_venue(venue: VenueCreate, background_tasks: BackgroundTasks):
+def create_venue(venue: VenueCreate):
     try:
         query = """
             INSERT INTO venue_venue (
@@ -231,8 +235,42 @@ def create_venue(venue: VenueCreate, background_tasks: BackgroundTasks):
                 inserted_id = cur.fetchone()[0]
                 conn.commit()
                 
-                # Register background check task
-                background_tasks.add_task(auto_check_venue_and_message_contact, inserted_id)
+                return {"status": "success", "id": str(inserted_id)}
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.post("/api/venue/site-visits")
+def create_site_visit(site_visit: SiteVisitCreate, background_tasks: BackgroundTasks):
+    try:
+        query = """
+            INSERT INTO venue_sitevisit (
+                venue_id, status, scheduled_date_time, notes, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s, NOW(), NOW()
+            ) RETURNING id;
+        """
+        params = (
+            site_visit.venue_id,
+            site_visit.status,
+            site_visit.scheduled_date_time if site_visit.scheduled_date_time else None,
+            site_visit.notes if site_visit.notes else None
+        )
+        
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                inserted_id = cur.fetchone()[0]
+                conn.commit()
+                
+                # Register background booking trigger task
+                background_tasks.add_task(auto_trigger_booking_coordination, inserted_id, site_visit.venue_id)
                 
                 return {"status": "success", "id": str(inserted_id)}
         except Exception as e:
