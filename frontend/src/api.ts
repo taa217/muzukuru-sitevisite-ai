@@ -72,6 +72,8 @@ export interface Venue {
   power_type: string | null;
   power_backup: string | null;
   internet_service_provider: string | null;
+  has_pa_system?: boolean;
+  pa_system_provider?: string | null;
   completeness_score: number;
   is_private_residence: boolean;
   venue_type: string | null;

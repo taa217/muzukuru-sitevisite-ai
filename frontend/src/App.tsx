@@ -16,7 +16,6 @@ import {
   Database,
   Home,
   LayoutGrid,
-  LineChart,
   Settings,
   LogOut,
   Bell,
