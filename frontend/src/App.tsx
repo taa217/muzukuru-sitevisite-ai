@@ -426,17 +426,18 @@ function App() {
     try {
       const isoDateTime = bookingDateTime ? new Date(bookingDateTime).toISOString() : null;
 
+      const activeContact = bookingVenueContacts.find(c => String(c.id) === String(selectedBookingContactId)) || bookingVenueContacts[0];
+
       await createSiteVisit({
         venue_id: parseInt(bookingVenueId, 10),
         scheduled_date_time: isoDateTime,
         notes: bookingNotes.trim() || null,
-        status: bookingStatus
+        status: bookingStatus,
+        contact_id: activeContact ? parseInt(String(activeContact.id), 10) : null
       });
 
       const selectedVenueObj = venues.find(v => v.id === bookingVenueId);
       const venueName = selectedVenueObj ? selectedVenueObj.name : 'Selected Venue';
-
-      const activeContact = bookingVenueContacts.find(c => String(c.id) === String(selectedBookingContactId)) || bookingVenueContacts[0];
       const contactInfo = activeContact 
         ? `${activeContact.name} (${activeContact.phone || 'No phone recorded'})` 
         : 'Mr Muza (+263788918512)';

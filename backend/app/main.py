@@ -35,6 +35,31 @@ def get_contact_info(phone_number: str) -> Dict[str, Any]:
         if local_part == num_local:
             return info
             
+    # Fallback to database lookup
+    try:
+        from app.agent.db import execute_read_query
+        db_query = "SELECT name, first_name, last_name, phone, role FROM contact_contact WHERE phone IS NOT NULL AND phone != '';"
+        cols, db_rows = execute_read_query(db_query)
+        for r in db_rows:
+            db_phone = r[3]
+            db_digits = "".join([c for c in db_phone if c.isdigit()])
+            if db_digits.startswith("263") and len(db_digits) > 3:
+                db_local = db_digits[3:]
+            else:
+                db_local = db_digits
+                
+            if local_part == db_local:
+                name = r[0]
+                if not name:
+                    name = f"{r[1] or ''} {r[2] or ''}".strip() or "Unknown"
+                return {
+                    "name": name,
+                    "role": r[4] or "Client / Venue coordinator",
+                    "is_crew": False
+                }
+    except Exception as db_err:
+        logger.error(f"Error querying contact_contact for phone_number {phone_number}: {db_err}")
+        
     return {"name": "Unknown", "role": "Client / Venue coordinator", "is_crew": False}
 
 # Import agent graph builder
@@ -383,15 +408,16 @@ class SiteVisitCreate(BaseModel):
     scheduled_date_time: str | None = None
     notes: str | None = None
     status: str = "scheduled"
+    contact_id: int | None = None
 
-async def auto_trigger_booking_coordination(booking_id: int, venue_id: int):
+async def auto_trigger_booking_coordination(booking_id: int, venue_id: int, contact_id: int | None = None):
     """
     Background task triggered when a new booking (site visit) is created for a venue in DB.
     Waits 5 seconds, then queries the AI agent to inspect the venue and booking details in DB,
     notifies crew members about the booking, and contacts the venue coordinator
     via WhatsApp to request any missing database details (power backup, wifi, capacity, etc.).
     """
-    logger.info(f"Booking coordination task triggered for booking ID: {booking_id}, venue ID: {venue_id}. Waiting 5 seconds...")
+    logger.info(f"Booking coordination task triggered for booking ID: {booking_id}, venue ID: {venue_id}, contact ID: {contact_id}. Waiting 5 seconds...")
     await asyncio.sleep(5)
     
     try:
@@ -405,14 +431,23 @@ async def auto_trigger_booking_coordination(booking_id: int, venue_id: int):
         coordinator_name = "Mr Muza"
         coordinator_phone = "+263788918512"
         try:
-            contact_query = """
-                SELECT c.name, c.first_name, c.last_name, c.phone
-                FROM venue_venue_contacts vc
-                JOIN contact_contact c ON vc.contact_id = c.id
-                WHERE vc.venue_id = %s
-                ORDER BY c.id ASC;
-            """
-            cols, rows = execute_read_query(contact_query, (venue_id,))
+            if contact_id:
+                contact_query = """
+                    SELECT name, first_name, last_name, phone
+                    FROM contact_contact
+                    WHERE id = %s;
+                """
+                cols, rows = execute_read_query(contact_query, (contact_id,))
+            else:
+                contact_query = """
+                    SELECT c.name, c.first_name, c.last_name, c.phone
+                    FROM venue_venue_contacts vc
+                    JOIN contact_contact c ON vc.contact_id = c.id
+                    WHERE vc.venue_id = %s
+                    ORDER BY c.id ASC;
+                """
+                cols, rows = execute_read_query(contact_query, (venue_id,))
+
             if rows:
                 row = rows[0]
                 name = row[0]
@@ -426,7 +461,7 @@ async def auto_trigger_booking_coordination(booking_id: int, venue_id: int):
                     coordinator_phone = phone
                     logger.info(f"Resolved dynamic coordinator: {coordinator_name} ({coordinator_phone}) for venue ID {venue_id}")
                 else:
-                    logger.info(f"Venue ID {venue_id} has contacts but name/phone is missing, falling back to default.")
+                    logger.info(f"Venue ID {venue_id} / Contact ID {contact_id} has contacts but name/phone is missing, falling back to default.")
             else:
                 logger.info(f"No contacts saved in database for venue ID {venue_id}. Falling back to default coordinator.")
         except Exception as db_err:
@@ -560,7 +595,7 @@ def create_site_visit(site_visit: SiteVisitCreate, background_tasks: BackgroundT
                 conn.commit()
                 
                 # Register background booking trigger task
-                background_tasks.add_task(auto_trigger_booking_coordination, inserted_id, site_visit.venue_id)
+                background_tasks.add_task(auto_trigger_booking_coordination, inserted_id, site_visit.venue_id, site_visit.contact_id)
                 
                 return {"status": "success", "id": str(inserted_id)}
         except Exception as e:

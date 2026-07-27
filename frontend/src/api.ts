@@ -139,6 +139,7 @@ export interface CreateSiteVisitPayload {
   scheduled_date_time?: string | null;
   notes?: string | null;
   status?: string;
+  contact_id?: number | null;
 }
 
 /**
