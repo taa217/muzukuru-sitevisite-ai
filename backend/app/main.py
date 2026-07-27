@@ -388,7 +388,7 @@ async def auto_trigger_booking_coordination(booking_id: int, venue_id: int):
     """
     Background task triggered when a new booking (site visit) is created for a venue in DB.
     Waits 5 seconds, then queries the AI agent to inspect the venue and booking details in DB,
-    notifies crew members about the booking, and contacts venue coordinator Mr Muza (+263788918512)
+    notifies crew members about the booking, and contacts the venue coordinator
     via WhatsApp to request any missing database details (power backup, wifi, capacity, etc.).
     """
     logger.info(f"Booking coordination task triggered for booking ID: {booking_id}, venue ID: {venue_id}. Waiting 5 seconds...")
@@ -401,13 +401,44 @@ async def auto_trigger_booking_coordination(booking_id: int, venue_id: int):
             
         agent = get_agent_graph()
         
+        # Resolve dynamic coordinator contact details for the venue from the DB
+        coordinator_name = "Mr Muza"
+        coordinator_phone = "+263788918512"
+        try:
+            contact_query = """
+                SELECT c.name, c.first_name, c.last_name, c.phone
+                FROM venue_venue_contacts vc
+                JOIN contact_contact c ON vc.contact_id = c.id
+                WHERE vc.venue_id = %s
+                ORDER BY c.id ASC;
+            """
+            cols, rows = execute_read_query(contact_query, (venue_id,))
+            if rows:
+                row = rows[0]
+                name = row[0]
+                if not name:
+                    fname = row[1] or ""
+                    lname = row[2] or ""
+                    name = f"{fname} {lname}".strip()
+                phone = row[3]
+                if name and phone:
+                    coordinator_name = name
+                    coordinator_phone = phone
+                    logger.info(f"Resolved dynamic coordinator: {coordinator_name} ({coordinator_phone}) for venue ID {venue_id}")
+                else:
+                    logger.info(f"Venue ID {venue_id} has contacts but name/phone is missing, falling back to default.")
+            else:
+                logger.info(f"No contacts saved in database for venue ID {venue_id}. Falling back to default coordinator.")
+        except Exception as db_err:
+            logger.error(f"Error querying contacts for venue ID {venue_id}: {db_err}")
+            
         instruction_msg = HumanMessage(
             content=(
                 f"Automated trigger: A new booking (site visit ID: {booking_id}) has been created for venue ID {venue_id}.\n"
                 "Please perform the following coordination tasks:\n"
                 f"1. Use `run_sql_query_tool` to inspect both `venue_sitevisit` (for site visit ID {booking_id}) and `venue_venue` (for venue ID {venue_id}) to gather venue and booking details.\n"
-                "2. Inform the crew (Clyde: +263781646052, Leon: +263771453985, Max: +263718834117) using `send_whatsapp_message_tool` about the newly booked site visit. Use a friendly, buddy-like, informal tone. Tell them the venue name, booking schedule/notes, and that you are now reaching out to the venue coordinator Mr Muza (+263788918512) to collect any missing venue information.\n"
-                "3. Message the client/venue coordinator Mr Muza (+263788918512) using `send_whatsapp_message_tool`. Keep the message concise, warm, professional, intuitive, and visually clean. Introduce yourself briefly as Nyasha from Muzukuru Funeral Services (coordinating logistics for the upcoming service at the venue). Ask for 2-3 key missing details (e.g. backup power, Wi-Fi, capacity, PA system) in a clean numbered list (`1. ...`, `2. ...`).\n"
+                f"2. Inform the crew (Clyde: +263781646052, Leon: +263771453985, Max: +263718834117) using `send_whatsapp_message_tool` about the newly booked site visit. Use a friendly, buddy-like, informal tone. Tell them the venue name, booking schedule/notes, and that you are now reaching out to the venue coordinator {coordinator_name} ({coordinator_phone}) to collect any missing venue information.\n"
+                f"3. Message the client/venue coordinator {coordinator_name} ({coordinator_phone}) using `send_whatsapp_message_tool`. Keep the message concise, warm, professional, intuitive, and visually clean. Introduce yourself briefly as Nyasha from Muzukuru Funeral Services (coordinating logistics for the upcoming service at the venue). Ask for 2-3 key missing details (e.g. backup power, Wi-Fi, capacity, PA system) in a clean numbered list (`1. ...`, `2. ...`).\n"
                 "Do NOT ask dry shorthand questions like 'wifi connectivity..' or 'backup power'. Ask full, friendly, intuitive questions.\n"
                 "Do NOT mention database tables, IDs, or completeness scores.\n"
                 "Ensure you use `send_whatsapp_message_tool` for each contact."

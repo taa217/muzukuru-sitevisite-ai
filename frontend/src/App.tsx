@@ -87,6 +87,12 @@ function App() {
 
   // Form State for Adding a Booking
   const [bookingVenueId, setBookingVenueId] = useState<string>('');
+  const [bookingVenueSearchQuery, setBookingVenueSearchQuery] = useState<string>('');
+  const [isBookingVenueDropdownOpen, setIsBookingVenueDropdownOpen] = useState<boolean>(false);
+  const [focusedVenueIndex, setFocusedVenueIndex] = useState<number>(-1);
+  const [bookingVenueContacts, setBookingVenueContacts] = useState<VenueContact[]>([]);
+  const [selectedBookingContactId, setSelectedBookingContactId] = useState<string>('');
+  const [isLoadingBookingContacts, setIsLoadingBookingContacts] = useState<boolean>(false);
   const [bookingDateTime, setBookingDateTime] = useState<string>('');
   const [bookingNotes, setBookingNotes] = useState<string>('');
   const [bookingStatus, setBookingStatus] = useState<string>('scheduled');
@@ -212,6 +218,33 @@ function App() {
     loadVenues();
   }, []);
 
+  // Fetch contacts for the venue selected in the booking form
+  useEffect(() => {
+    if (bookingVenueId) {
+      setIsLoadingBookingContacts(true);
+      fetchVenueContacts(bookingVenueId)
+        .then(contacts => {
+          setBookingVenueContacts(contacts);
+          if (contacts.length > 0) {
+            setSelectedBookingContactId(String(contacts[0].id));
+          } else {
+            setSelectedBookingContactId('');
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load booking venue contacts:", err);
+          setBookingVenueContacts([]);
+          setSelectedBookingContactId('');
+        })
+        .finally(() => {
+          setIsLoadingBookingContacts(false);
+        });
+    } else {
+      setBookingVenueContacts([]);
+      setSelectedBookingContactId('');
+    }
+  }, [bookingVenueId]);
+
   // Venue child data states from Neon DB
   const [venueContacts, setVenueContacts] = useState<VenueContact[]>([]);
   const [venueLayouts, setVenueLayouts] = useState<VenueLayout[]>([]);
@@ -249,11 +282,23 @@ function App() {
   }, [selectedVenueId]);
 
   const handleAddContact = async () => {
-    if (!selectedVenueId || !newContactData.first_name.trim()) return;
+    const venueIdToUse = activeTab === 'add_booking' ? bookingVenueId : selectedVenueId;
+    if (!venueIdToUse || !newContactData.first_name.trim()) return;
     setIsSubmittingContact(true);
     try {
-      const created = await createVenueContact(selectedVenueId, newContactData);
-      setVenueContacts(prev => [...prev, created]);
+      const created = await createVenueContact(venueIdToUse, newContactData);
+      if (activeTab === 'add_booking') {
+        setBookingVenueContacts(prev => {
+          const updated = [...prev, created];
+          // Auto select this contact if it was the only one
+          if (updated.length === 1) {
+            setSelectedBookingContactId(String(created.id));
+          }
+          return updated;
+        });
+      } else {
+        setVenueContacts(prev => [...prev, created]);
+      }
       setShowAddContactModal(false);
       setNewContactData({
         first_name: '',
@@ -391,15 +436,23 @@ function App() {
       const selectedVenueObj = venues.find(v => v.id === bookingVenueId);
       const venueName = selectedVenueObj ? selectedVenueObj.name : 'Selected Venue';
 
+      const activeContact = bookingVenueContacts.find(c => String(c.id) === String(selectedBookingContactId)) || bookingVenueContacts[0];
+      const contactInfo = activeContact 
+        ? `${activeContact.name} (${activeContact.phone || 'No phone recorded'})` 
+        : 'Mr Muza (+263788918512)';
+
       setBookingSuccessMsg(
-        `Booking successfully saved to DB for "${venueName}"! Nyasha (AI Assistant) is now triggered to inspect the venue in DB and contact venue coordinator Mr Muza (+263788918512) via WhatsApp.`
+        `Booking successfully saved to DB for "${venueName}"! Nyasha (AI Assistant) is now triggered to inspect the venue in DB and contact venue coordinator ${contactInfo} via WhatsApp.`
       );
 
       // Reset form fields
       setBookingVenueId('');
+      setBookingVenueSearchQuery('');
       setBookingDateTime('');
       setBookingNotes('');
       setBookingStatus('scheduled');
+      setBookingVenueContacts([]);
+      setSelectedBookingContactId('');
 
       // Refresh data
       await loadSiteVisits();
@@ -744,15 +797,48 @@ function App() {
     return { color: '#c62828', label: 'Fair', bg: '#ffebee' }; // Red
   };
 
+  // Helper to highlight matching text in search results
+  const highlightText = (text: string | null, search: string) => {
+    if (!text) return '';
+    if (!search.trim()) return <span>{text}</span>;
+    
+    const terms = search.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
+    if (terms.length === 0) return <span>{text}</span>;
+    
+    // We escape regex characters to avoid breaking the query
+    const escapedTerms = terms.map(term => term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'));
+    const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+    
+    const parts = text.split(regex);
+    return (
+      <>
+        {parts.map((part, i) => 
+          regex.test(part) ? (
+            <mark key={i} style={{ backgroundColor: '#ffe082', color: '#2d231e', padding: '0 2px', borderRadius: '2px', fontWeight: 600 }}>{part}</mark>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </>
+    );
+  };
+
   // Venues client-side filtering logic
   const filteredVenues = venues.filter(venue => {
-    // 1. Text search (name, address, type)
+    // 1. Text search (name, address, type) - multi-term matching
     const text = venuesSearchQuery.toLowerCase().trim();
     if (text) {
-      const matchName = (venue.name || '').toLowerCase().includes(text);
-      const matchAddress = (venue.address_one || '').toLowerCase().includes(text) || (venue.address_two || '').toLowerCase().includes(text) || (venue.suburb || '').toLowerCase().includes(text) || (venue.city || '').toLowerCase().includes(text);
-      const matchType = (venue.venue_type || '').toLowerCase().includes(text);
-      if (!matchName && !matchAddress && !matchType) return false;
+      const terms = text.split(/\s+/).filter(t => t.length > 0);
+      const matchAllTerms = terms.every(term => {
+        const matchName = (venue.name || '').toLowerCase().includes(term);
+        const matchAddress = (venue.address_one || '').toLowerCase().includes(term) || 
+                             (venue.address_two || '').toLowerCase().includes(term) || 
+                             (venue.suburb || '').toLowerCase().includes(term) || 
+                             (venue.city || '').toLowerCase().includes(term);
+        const matchType = (venue.venue_type || '').toLowerCase().includes(term);
+        return matchName || matchAddress || matchType;
+      });
+      if (!matchAllTerms) return false;
     }
 
     // 2. Private residence filter
@@ -1146,15 +1232,39 @@ function App() {
                   <ChevronDown size={14} className="header-dropdown-icon" />
                 </div>
 
-                <div className="header-search-wrapper">
+                <div className="header-search-wrapper" style={{ position: 'relative' }}>
                   <input
                     type="text"
                     className="header-search-input"
                     placeholder="Search bookings, stream setups..."
                     value={venuesSearchQuery}
                     onChange={(e) => setVenuesSearchQuery(e.target.value)}
+                    style={{ paddingRight: venuesSearchQuery ? '2rem' : '1.75rem' }}
                   />
                   <Search size={14} className="header-search-icon" />
+                  {venuesSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setVenuesSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '0.5rem',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0.2rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        zIndex: 2
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1197,7 +1307,7 @@ function App() {
                 </label>
               </div>
 
-              <div className="filter-search-wrapper">
+              <div className="filter-search-wrapper" style={{ position: 'relative' }}>
                 <Search size={14} className="filter-search-icon" />
                 <input
                   type="text"
@@ -1205,7 +1315,28 @@ function App() {
                   placeholder="Search by venue name, type, or address..."
                   value={venuesSearchQuery}
                   onChange={(e) => setVenuesSearchQuery(e.target.value)}
+                  style={{ paddingRight: venuesSearchQuery ? '2rem' : '1rem' }}
                 />
+                {venuesSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setVenuesSearchQuery('')}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0.2rem'
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
               <div className="filter-actions">
@@ -1321,10 +1452,16 @@ function App() {
 
                         {/* Details Section */}
                         <div className="venue-card-body">
-                          <h2 className="venue-card-title-new">{venue.name}</h2>
+                          <h2 className="venue-card-title-new">{highlightText(venue.name, venuesSearchQuery)}</h2>
                           <div className="venue-card-address-new">
                             <MapPin size={12} />
-                            <span>{venue.address_one || venue.city || 'Address not specified'}</span>
+                            <span>
+                              {venue.address_one 
+                                ? highlightText(venue.address_one, venuesSearchQuery) 
+                                : venue.city 
+                                  ? highlightText(venue.city, venuesSearchQuery) 
+                                  : 'Address not specified'}
+                            </span>
                           </div>
 
                           <div className="venue-card-specs">
@@ -2946,31 +3083,229 @@ function App() {
 
                   <form onSubmit={(e) => { e.preventDefault(); handleSaveBooking(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     {/* VENUE SELECTOR FROM DB */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative' }}>
                       <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         Select Venue from Database <span style={{ color: 'red' }}>*</span>
                       </label>
-                      <select
-                        value={bookingVenueId}
-                        onChange={(e) => setBookingVenueId(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem 1rem',
-                          borderRadius: '10px',
-                          border: '1px solid var(--border-light)',
-                          fontSize: '0.9rem',
-                          outline: 'none',
-                          backgroundColor: '#faf8f5',
-                          fontWeight: 500
-                        }}
-                      >
-                        <option value="">-- Choose a Venue in Database --</option>
-                        {venues.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.name} ({v.city || 'Harare'}) - {v.completeness_score}% DB Completeness
-                          </option>
-                        ))}
-                      </select>
+                      
+                      {bookingVenueId ? (
+                        // Render selected venue card/capsule
+                        (() => {
+                          const selectedVenue = venues.find(v => v.id === bookingVenueId);
+                          if (!selectedVenue) return null;
+                          const completeness = getCompletenessDetails(selectedVenue.completeness_score);
+                          return (
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '0.75rem 1rem',
+                              borderRadius: '10px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: '#ffffff',
+                              boxShadow: '0 2px 6px rgba(92,62,48,0.04)'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <Building size={18} style={{ color: 'var(--color-primary)' }} />
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-dark)' }}>{selectedVenue.name}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{selectedVenue.address_one || selectedVenue.city || 'Harare'}</span>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <span style={{
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '20px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  background: completeness.bg,
+                                  color: completeness.color
+                                }}>
+                                  {selectedVenue.completeness_score}% Score
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBookingVenueId('');
+                                    setBookingVenueSearchQuery('');
+                                    setBookingVenueContacts([]);
+                                    setSelectedBookingContactId('');
+                                  }}
+                                  style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer',
+                                    color: 'var(--color-error)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    padding: '0.25rem',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    gap: '0.2rem'
+                                  }}
+                                  title="Change Venue"
+                                >
+                                  Change
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        // Render Search input & drop-down
+                        <div style={{ position: 'relative' }}>
+                          <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                          <input
+                            type="text"
+                            placeholder="Search 200+ venues by name, city, address..."
+                            value={bookingVenueSearchQuery}
+                            onFocus={() => {
+                              setIsBookingVenueDropdownOpen(true);
+                              setFocusedVenueIndex(0);
+                            }}
+                            onChange={(e) => {
+                              setBookingVenueSearchQuery(e.target.value);
+                              setIsBookingVenueDropdownOpen(true);
+                              setFocusedVenueIndex(0);
+                            }}
+                            onKeyDown={(e) => {
+                              if (!isBookingVenueDropdownOpen) return;
+                              
+                              // Filter inside keydown for correct length
+                              const filtered = venues.filter(v => {
+                                if (!bookingVenueSearchQuery.trim()) return true;
+                                const q = bookingVenueSearchQuery.toLowerCase().trim();
+                                const terms = q.split(/\s+/).filter(t => t.length > 0);
+                                return terms.every(term => 
+                                  (v.name || '').toLowerCase().includes(term) ||
+                                  (v.city || '').toLowerCase().includes(term) ||
+                                  (v.venue_type || '').toLowerCase().includes(term) ||
+                                  (v.address_one || '').toLowerCase().includes(term)
+                                );
+                              }).slice(0, 50);
+
+                              if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                setFocusedVenueIndex(prev => (prev + 1) % filtered.length);
+                              } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                setFocusedVenueIndex(prev => (prev - 1 + filtered.length) % filtered.length);
+                              } else if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (filtered[focusedVenueIndex]) {
+                                  setBookingVenueId(filtered[focusedVenueIndex].id);
+                                  setBookingVenueSearchQuery('');
+                                  setIsBookingVenueDropdownOpen(false);
+                                }
+                              } else if (e.key === 'Escape') {
+                                setIsBookingVenueDropdownOpen(false);
+                              }
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '0.75rem 1rem 0.75rem 2.5rem',
+                              borderRadius: '10px',
+                              border: '1px solid var(--border-light)',
+                              fontSize: '0.9rem',
+                              outline: 'none',
+                              backgroundColor: '#faf8f5',
+                              fontWeight: 500
+                            }}
+                          />
+                          
+                          {/* Close Interceptor */}
+                          {isBookingVenueDropdownOpen && (
+                            <div 
+                              onClick={() => setIsBookingVenueDropdownOpen(false)}
+                              style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, zIndex: 90 }}
+                            />
+                          )}
+
+                          {/* Autocomplete Dropdown List */}
+                          {isBookingVenueDropdownOpen && (() => {
+                            const filtered = venues.filter(v => {
+                              if (!bookingVenueSearchQuery.trim()) return true;
+                              const q = bookingVenueSearchQuery.toLowerCase().trim();
+                              const terms = q.split(/\s+/).filter(t => t.length > 0);
+                              return terms.every(term => 
+                                (v.name || '').toLowerCase().includes(term) ||
+                                (v.city || '').toLowerCase().includes(term) ||
+                                (v.venue_type || '').toLowerCase().includes(term) ||
+                                (v.address_one || '').toLowerCase().includes(term)
+                              );
+                            }).slice(0, 50);
+
+                            return (
+                              <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                zIndex: 100,
+                                backgroundColor: '#ffffff',
+                                border: '1px solid var(--border-light)',
+                                borderRadius: '10px',
+                                boxShadow: 'var(--shadow-premium)',
+                                marginTop: '0.35rem',
+                                maxHeight: '250px',
+                                overflowY: 'auto'
+                              }}>
+                                {filtered.length === 0 ? (
+                                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                    No venues match your search.
+                                  </div>
+                                ) : (
+                                  filtered.map((v, index) => {
+                                    const isFocused = index === focusedVenueIndex;
+                                    const completeness = getCompletenessDetails(v.completeness_score);
+                                    return (
+                                      <div
+                                        key={v.id}
+                                        onClick={() => {
+                                          setBookingVenueId(v.id);
+                                          setBookingVenueSearchQuery('');
+                                          setIsBookingVenueDropdownOpen(false);
+                                        }}
+                                        onMouseEnter={() => setFocusedVenueIndex(index)}
+                                        style={{
+                                          padding: '0.7rem 1rem',
+                                          cursor: 'pointer',
+                                          backgroundColor: isFocused ? 'rgba(92, 62, 48, 0.05)' : '#ffffff',
+                                          borderBottom: '1px solid rgba(92, 62, 48, 0.04)',
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
+                                          alignItems: 'center',
+                                          transition: 'background-color 0.15s ease'
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                          <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-dark)' }}>
+                                            {highlightText(v.name, bookingVenueSearchQuery)}
+                                          </span>
+                                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            {v.address_one ? highlightText(v.address_one, bookingVenueSearchQuery) : v.city ? highlightText(v.city, bookingVenueSearchQuery) : 'Harare'} • {v.venue_type || 'General'}
+                                          </span>
+                                        </div>
+                                        <span style={{
+                                          padding: '0.15rem 0.45rem',
+                                          borderRadius: '12px',
+                                          fontSize: '0.68rem',
+                                          fontWeight: 700,
+                                          backgroundColor: completeness.bg,
+                                          color: completeness.color
+                                        }}>
+                                          {v.completeness_score}%
+                                        </span>
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+                      
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                         {venues.length} venue(s) currently available in database.
                       </span>
@@ -3161,12 +3496,105 @@ function App() {
                             <Sparkles size={16} />
                             <span>AI Coordinator Action Plan</span>
                           </div>
-                          <p style={{ fontSize: '0.8rem', color: '#5c3e30', lineHeight: '1.45', marginBottom: '0.85rem' }}>
-                            When you save this booking, <strong>Nyasha (AI)</strong> will be triggered to check this venue in the DB and contact <strong>Mr Muza (+263788918512)</strong> via WhatsApp.
-                          </p>
+                          
+                          {isLoadingBookingContacts ? (
+                            <p style={{ fontSize: '0.8rem', color: '#7a685e', padding: '0.5rem 0' }}>
+                              Loading coordinator contacts...
+                            </p>
+                          ) : bookingVenueContacts.length > 0 ? (
+                            <>
+                              {(() => {
+                                const selectedContact = bookingVenueContacts.find(c => String(c.id) === String(selectedBookingContactId)) || bookingVenueContacts[0];
+                                return (
+                                  <p style={{ fontSize: '0.8rem', color: '#5c3e30', lineHeight: '1.45', marginBottom: '0.85rem' }}>
+                                    When you save this booking, <strong>Nyasha (AI)</strong> will be triggered to check this venue in the DB and contact <strong>{selectedContact.name} ({selectedContact.phone || 'No phone'})</strong> via WhatsApp.
+                                  </p>
+                                );
+                              })()}
+
+                              {bookingVenueContacts.length > 1 && (
+                                <div style={{ marginBottom: '1rem', borderTop: '1px solid #ebd5c1', paddingTop: '0.75rem' }}>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8c4b18', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '0.5rem' }}>
+                                    Select Outreach Contact:
+                                  </span>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                    {bookingVenueContacts.map((c) => {
+                                      const isSelected = String(c.id) === String(selectedBookingContactId);
+                                      return (
+                                        <label
+                                          key={c.id}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.4rem 0.6rem',
+                                            borderRadius: '8px',
+                                            border: isSelected ? '1px solid #8c4b18' : '1px solid #ebd5c1',
+                                            backgroundColor: isSelected ? '#ffffff' : 'transparent',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
+                                          }}
+                                        >
+                                          <input
+                                            type="radio"
+                                            name="bookingContact"
+                                            checked={isSelected}
+                                            onChange={() => setSelectedBookingContactId(String(c.id))}
+                                            style={{ accentColor: '#8c4b18' }}
+                                          />
+                                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#5c3e30' }}>{c.name}</span>
+                                            <span style={{ fontSize: '0.7rem', color: '#7a685e' }}>{c.role || 'Coordinator'}</span>
+                                          </div>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div style={{
+                              padding: '0.85rem',
+                              borderRadius: '10px',
+                              backgroundColor: 'rgba(183, 28, 28, 0.05)',
+                              border: '1px dashed var(--color-error)',
+                              color: 'var(--color-error)',
+                              fontSize: '0.78rem',
+                              lineHeight: '1.4',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.5rem',
+                              marginBottom: '0.85rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}>
+                                <AlertCircle size={14} />
+                                <span>No Contacts Saved for Venue!</span>
+                              </div>
+                              <span>Nyasha (AI Assistant) requires a venue contact name and WhatsApp phone number to perform automated outreach.</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowAddContactModal(true)}
+                                className="btn-add-venue"
+                                style={{
+                                  alignSelf: 'flex-start',
+                                  fontSize: '0.72rem',
+                                  padding: '0.3rem 0.6rem',
+                                  backgroundColor: 'var(--color-error)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontWeight: 600
+                                }}
+                              >
+                                + Add Coordinator Contact
+                              </button>
+                            </div>
+                          )}
 
                           {missingItems.length > 0 ? (
-                            <div>
+                            <div style={{ borderTop: '1px solid #ebd5c1', paddingTop: '0.75rem' }}>
                               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8c4b18', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
                                 Missing DB Details to Request:
                               </div>
@@ -3177,7 +3605,7 @@ function App() {
                               </ul>
                             </div>
                           ) : (
-                            <div style={{ fontSize: '0.78rem', color: '#2e7d32', fontWeight: 600 }}>
+                            <div style={{ fontSize: '0.78rem', color: '#2e7d32', fontWeight: 600, borderTop: '1px solid #ebd5c1', paddingTop: '0.75rem' }}>
                               ✓ Venue DB records are already highly complete!
                             </div>
                           )}
