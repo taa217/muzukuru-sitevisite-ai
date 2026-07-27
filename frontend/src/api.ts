@@ -78,6 +78,7 @@ export interface Venue {
   is_private_residence: boolean;
   venue_type: string | null;
   media_urls: any;
+  notes?: string | null;
 }
 
 /**

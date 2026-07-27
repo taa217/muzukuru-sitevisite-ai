@@ -29,7 +29,11 @@ import {
   ChevronDown,
   Edit,
   Trash,
-  Image as ImageIcon
+  Image as ImageIcon,
+  MessageSquare,
+  Phone,
+  Mail,
+  ChevronRight
 } from 'lucide-react';
 import { chatWithAgent, getSiteVisits, getVenues, createVenue, createSiteVisit } from './api';
 import type { ChatMessage, SiteVisit, Venue } from './api';
@@ -57,7 +61,9 @@ function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'chat' | 'venues' | 'add_venue' | 'add_booking'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'venues' | 'add_venue' | 'add_booking' | 'venue_details'>('chat');
+  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
+  const [venueDetailsTab, setVenueDetailsTab] = useState<'general' | 'rooms' | 'floor_plans' | 'gallery' | 'bookings' | 'contacts'>('general');
 
   // Form State for Adding a Booking
   const [bookingVenueId, setBookingVenueId] = useState<string>('');
@@ -689,7 +695,7 @@ function App() {
 
           <button
             onClick={() => setActiveTab('venues')}
-            className={`sidebar-btn ${activeTab === 'venues' || activeTab === 'add_venue' ? 'active' : ''}`}
+            className={`sidebar-btn ${activeTab === 'venues' || activeTab === 'add_venue' || activeTab === 'venue_details' ? 'active' : ''}`}
             title="Venues Dashboard"
           >
             <LayoutGrid size={20} />
@@ -720,7 +726,7 @@ function App() {
 
       {/* MAIN VIEW AREA */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
-        {activeTab === 'chat' ? (
+        {activeTab === 'chat' && (
           <div className={`app-container ${mobileChatSubTab === 'chat' ? 'show-chat-view' : 'show-visits-view'}`}>
             {/* Mobile Sub-Navigation Toggle Bar */}
             <div className="mobile-chat-toggle-bar">
@@ -975,7 +981,9 @@ function App() {
               </div>
             </main>
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'venues' && (
           <div className="venues-dashboard">
             {/* VENUES HEADER */}
             <header className="venues-header">
@@ -1111,7 +1119,15 @@ function App() {
                     const strokeDashoffset = circumference - (venue.completeness_score / 100) * circumference;
 
                     return (
-                      <div className="venue-card-new" key={venue.id}>
+                      <div 
+                        className="venue-card-new" 
+                        key={venue.id}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setSelectedVenueId(venue.id);
+                          setActiveTab('venue_details');
+                        }}
+                      >
                         {/* Media Section */}
                         <div className="venue-card-media">
                           {imageSrc ? (
@@ -1164,9 +1180,9 @@ function App() {
 
                           {/* Media Actions Overlay */}
                           <div className="media-actions-overlay">
-                            <button className="media-action-circle-btn"><Edit size={12} /></button>
-                            <button className="media-action-circle-btn"><Trash size={12} /></button>
-                            <button className="media-action-circle-btn"><ImageIcon size={12} /></button>
+                            <button className="media-action-circle-btn" onClick={(e) => e.stopPropagation()}><Edit size={12} /></button>
+                            <button className="media-action-circle-btn" onClick={(e) => e.stopPropagation()}><Trash size={12} /></button>
+                            <button className="media-action-circle-btn" onClick={(e) => e.stopPropagation()}><ImageIcon size={12} /></button>
                           </div>
                         </div>
 
@@ -1199,14 +1215,28 @@ function App() {
 
                           {/* Action Buttons */}
                           <div className="venue-card-foot-btns">
-                            <button className="btn-card-plan">
+                            <button 
+                              className="btn-card-plan"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBookingVenueId(venue.id);
+                                setActiveTab('add_booking');
+                              }}
+                            >
                               <Calendar size={12} />
                               <span>Plan</span>
                             </button>
-                            <button className="btn-card-map-pin">
+                            <button className="btn-card-map-pin" onClick={(e) => e.stopPropagation()}>
                               <MapPin size={14} />
                             </button>
-                            <button className="btn-card-details">
+                            <button 
+                              className="btn-card-details"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedVenueId(venue.id);
+                                setActiveTab('venue_details');
+                              }}
+                            >
                               <Info size={12} />
                               <span>Details</span>
                             </button>
@@ -1219,6 +1249,450 @@ function App() {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === 'venue_details' && (
+          (() => {
+            const selectedVenue = venues.find(v => v.id === selectedVenueId) || venues[0];
+            if (!selectedVenue) {
+              return (
+                <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No venue selected. <button onClick={() => setActiveTab('venues')}>Back to Venues</button>
+                </div>
+              );
+            }
+
+            const heroImg = getVenueImage(selectedVenue) || '/all_souls.png';
+
+            return (
+              <div className="venues-dashboard" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
+                {/* HEADER */}
+                <header className="venues-header">
+                  <div className="venues-title-section">
+                    <h1 style={{ fontSize: '1.25rem', fontWeight: 800 }}>{selectedVenue.id || '51'}</h1>
+                    <span 
+                      className="venues-breadcrumb" 
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setActiveTab('venues')}
+                    >
+                      Venues / {selectedVenue.id || '51'}
+                    </span>
+                  </div>
+
+                  <div className="venues-header-center">
+                    <button className="header-home-btn" onClick={() => setActiveTab('chat')} title="Go to Chat">
+                      <Home size={16} />
+                    </button>
+
+                    <div className="header-dropdown-wrapper">
+                      <select
+                        className="header-dropdown"
+                        value={selectedVenueType}
+                        onChange={(e) => setSelectedVenueType(e.target.value)}
+                      >
+                        <option value="All">All</option>
+                        <option value="church">Church</option>
+                        <option value="hall">Hall</option>
+                        <option value="Funeral Parlour">Funeral Parlour</option>
+                        <option value="tent">Tent</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <ChevronDown size={14} className="header-dropdown-icon" />
+                    </div>
+
+                    <div className="header-search-wrapper">
+                      <input
+                        type="text"
+                        className="header-search-input"
+                        placeholder="Search bookings, stream setups..."
+                        value={venuesSearchQuery}
+                        onChange={(e) => setVenuesSearchQuery(e.target.value)}
+                      />
+                      <Search size={14} className="header-search-icon" />
+                    </div>
+                  </div>
+
+                  <div className="venues-header-right">
+                    <button className="header-icon-btn" onClick={() => setActiveTab('venues')} title="Grid View">
+                      <LayoutGrid size={16} />
+                    </button>
+                    <button className="header-icon-btn">
+                      <Bell size={16} />
+                      <span className="notification-badge">4</span>
+                    </button>
+                    <button className="header-icon-btn">
+                      <MessageSquare size={16} />
+                    </button>
+                    <button className="header-icon-btn">
+                      <Moon size={16} />
+                    </button>
+                    <div className="profile-capsule">
+                      <div className="profile-avatar-circle">C</div>
+                      <span>Clyde Tadiwa</span>
+                    </div>
+                  </div>
+                </header>
+
+                {/* MAIN DETAIL SCROLL AREA */}
+                <div className="venue-detail-scroll-area">
+                  <div className="venue-detail-main-layout">
+                    
+                    {/* LEFT MAIN COLUMN (Hero, Stats, Tabs, Content) */}
+                    <div className="venue-detail-left-column">
+                      
+                      {/* 1. TOP HERO BANNER */}
+                      <div className="venue-hero-banner">
+                        <img src={heroImg} alt={selectedVenue.name} className="hero-banner-img" />
+                        <div className="hero-overlay-content">
+                          {/* Top Left Edit Icon */}
+                          <button className="hero-edit-btn" title="Edit Cover Photo">
+                            <Edit size={14} />
+                          </button>
+
+                          {/* Bottom Left Info */}
+                          <div className="hero-left-info">
+                            <span className="hero-type-badge">
+                              {selectedVenue.venue_type || 'church'}
+                            </span>
+                            <h1 className="hero-title">{selectedVenue.name}</h1>
+                            <p className="hero-address">
+                              {selectedVenue.address_one 
+                                ? `${selectedVenue.address_one}, ${selectedVenue.suburb || ''}, ${selectedVenue.city || 'Harare'}, ZW`
+                                : (selectedVenue.city ? `${selectedVenue.city}, ZW` : '12 Westcott Road, Mount Pleasant, Harare, ZW')}
+                            </p>
+                          </div>
+
+                          {/* Bottom Right Venue Health Glass Card & Percentage Ring */}
+                          <div className="hero-right-health">
+                            <div className="hero-health-score-ring">
+                              <span>{selectedVenue.completeness_score || 68}%</span>
+                            </div>
+                            <div className="hero-health-glass-card">
+                              <div className="health-card-header">
+                                <span className="health-card-title">Venue Health</span>
+                                <span className="health-card-completeness">Data Completeness <strong>{selectedVenue.completeness_score || 68}%</strong></span>
+                              </div>
+                              <div className="health-bar-track">
+                                <div 
+                                  className="health-bar-fill"
+                                  style={{ width: `${selectedVenue.completeness_score || 68}%` }}
+                                />
+                              </div>
+                              <div className="health-card-meta">
+                                <span>Last updated: 23-01-2026</span>
+                                <span>Past Events <strong>1</strong></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. KEY STATS ATTRIBUTES STRIP */}
+                      <div className="venue-stats-strip">
+                        <div className="stat-strip-box">
+                          <div className="stat-icon-circle"><Wifi size={16} /></div>
+                          <div className="stat-text-meta">
+                            <span className="stat-tag">INTERNET</span>
+                            <span className="stat-val">{selectedVenue.internet_service_provider || 'Zol (Liquid Home)'}</span>
+                          </div>
+                        </div>
+
+                        <div className="stat-strip-box">
+                          <div className="stat-icon-circle"><Zap size={16} /></div>
+                          <div className="stat-text-meta">
+                            <span className="stat-tag">POWER</span>
+                            <span className="stat-val">{selectedVenue.power_type || selectedVenue.power_backup || 'zesa'}</span>
+                          </div>
+                        </div>
+
+                        <div className="stat-strip-box">
+                          <div className="stat-icon-circle"><Users size={16} /></div>
+                          <div className="stat-text-meta">
+                            <span className="stat-tag">CAPACITY</span>
+                            <span className="stat-val">{selectedVenue.capacity || '300'}</span>
+                          </div>
+                        </div>
+
+                        <div className="stat-strip-box">
+                          <div className="stat-icon-circle"><LayoutGrid size={16} /></div>
+                          <div className="stat-text-meta">
+                            <span className="stat-tag">ROOMS</span>
+                            <span className="stat-val">0</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. DETAIL TABS NAVIGATION */}
+                      <div className="venue-details-tabs-bar">
+                        {[
+                          { id: 'general', label: 'General' },
+                          { id: 'rooms', label: 'Rooms' },
+                          { id: 'floor_plans', label: 'Floor Plans' },
+                          { id: 'gallery', label: 'Gallery' },
+                          { id: 'bookings', label: 'Bookings' },
+                          { id: 'contacts', label: 'Contacts' }
+                        ].map(tab => (
+                          <button
+                            key={tab.id}
+                            className={`venue-tab-item ${venueDetailsTab === tab.id ? 'active' : ''}`}
+                            onClick={() => setVenueDetailsTab(tab.id as any)}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* 4. TAB CONTENT AREA */}
+                      <div className="venue-details-tab-content-area">
+                        {venueDetailsTab === 'general' && (
+                          <div className="general-tab-grid">
+                            {/* General Information Card */}
+                            <div className="detail-white-card general-info-card">
+                              <div className="card-header-with-action">
+                                <h3>General Information</h3>
+                                <button className="icon-edit-btn" title="Edit General Info">
+                                  <Edit size={14} />
+                                </button>
+                              </div>
+                              
+                              <div className="detail-props-table">
+                                <div className="prop-row">
+                                  <span className="prop-label">Venue Name</span>
+                                  <span className="prop-value-bold">{selectedVenue.name}</span>
+                                </div>
+                                <div className="prop-row">
+                                  <span className="prop-label">Venue Type</span>
+                                  <span className="prop-value">{selectedVenue.venue_type || 'church'}</span>
+                                </div>
+                                <div className="prop-row">
+                                  <span className="prop-label">Capacity</span>
+                                  <span className="prop-value">{selectedVenue.capacity || '300'}</span>
+                                </div>
+                                <div className="prop-row">
+                                  <span className="prop-label">Rooms</span>
+                                  <span className="prop-value">0</span>
+                                </div>
+                                <div className="prop-row">
+                                  <span className="prop-label">Website</span>
+                                  <span className="prop-value-dash">—</span>
+                                </div>
+                                <div className="prop-row">
+                                  <span className="prop-label">Instagram</span>
+                                  <span className="prop-value-dash">—</span>
+                                </div>
+                                <div className="prop-row">
+                                  <span className="prop-label">Facebook</span>
+                                  <span className="prop-value-dash">—</span>
+                                </div>
+                                <div className="prop-row">
+                                  <span className="prop-label">Address</span>
+                                  <span className="prop-value">
+                                    {selectedVenue.address_one 
+                                      ? `${selectedVenue.address_one}, ${selectedVenue.suburb || ''}, ${selectedVenue.city || 'Harare'}, ZW`
+                                      : '12 Westcott Road, Mount Pleasant, Harare, ZW'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Venue Image Card next to General Info */}
+                            <div className="general-tab-image-container">
+                              <img src={heroImg} alt={selectedVenue.name} className="tab-preview-img" />
+                            </div>
+                          </div>
+                        )}
+
+                        {venueDetailsTab === 'rooms' && (
+                          <div className="detail-white-card">
+                            <div className="card-header-with-action">
+                              <h3>Rooms & Spaces</h3>
+                            </div>
+                            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                              <Building size={44} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
+                              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>Main Hall Setup</h4>
+                              <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
+                                Dedicated capacity: {selectedVenue.capacity || '300'} seats. No additional sub-rooms recorded.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {venueDetailsTab === 'floor_plans' && (
+                          <div className="detail-white-card">
+                            <div className="card-header-with-action">
+                              <h3>Floor Plans</h3>
+                            </div>
+                            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                              <ImageIcon size={44} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
+                              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>Layout & Camera Setup</h4>
+                              <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
+                                Floor plan blueprint available for stream camera positioning and audio desk configuration.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {venueDetailsTab === 'gallery' && (
+                          <div className="detail-white-card">
+                            <div className="card-header-with-action">
+                              <h3>Gallery</h3>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                              <img src={heroImg} alt="Gallery 1" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px' }} />
+                              <img src="/alo_alo.png" alt="Gallery 2" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px' }} />
+                              <img src="/abiding_hope.png" alt="Gallery 3" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px' }} />
+                            </div>
+                          </div>
+                        )}
+
+                        {venueDetailsTab === 'bookings' && (
+                          <div className="detail-white-card">
+                            <div className="card-header-with-action">
+                              <h3>Bookings for {selectedVenue.name}</h3>
+                              <button 
+                                className="btn-add-venue"
+                                style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}
+                                onClick={() => {
+                                  setBookingVenueId(selectedVenue.id);
+                                  setActiveTab('add_booking');
+                                }}
+                              >
+                                <CalendarClock size={14} />
+                                <span>Schedule Visit</span>
+                              </button>
+                            </div>
+                            <div style={{ marginTop: '1rem' }}>
+                              {visits.filter(v => v.venue_name === selectedVenue.name).length === 0 ? (
+                                <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                  No site visit bookings currently scheduled for this venue.
+                                </div>
+                              ) : (
+                                visits.filter(v => v.venue_name === selectedVenue.name).map(v => (
+                                  <div key={v.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-dark)' }}>{v.notes || 'Site Visit'}</div>
+                                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{formatDate(v.scheduled_date_time)}</div>
+                                    </div>
+                                    <span style={{ fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', background: '#e8f5e9', color: '#2e7d32', fontWeight: 700, textTransform: 'capitalize' }}>
+                                      {v.status}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {venueDetailsTab === 'contacts' && (
+                          <div className="detail-white-card">
+                            <div className="card-header-with-action">
+                              <h3>Contacts</h3>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+                                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#5c3e30', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem' }}>JC</div>
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-dark)' }}>Jonathan Chikoro</div>
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Primary Contact • jonathanchikoro@gmail.com • +263 77 790 4725</div>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+                                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#8c6239', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem' }}>BM</div>
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-dark)' }}>Barnabas Munz...</div>
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Secondary Contact</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+
+                    {/* RIGHT SIDEBAR PANEL (Spans full height next to left column) */}
+                    <div className="venue-details-right-sidebar">
+                      
+                      {/* Primary Contact Card */}
+                      <div className="sidebar-detail-card contact-card-panel">
+                        <div className="card-top-icon-actions">
+                          <button className="small-icon-btn" title="Delete Contact"><Trash size={13} /></button>
+                          <button className="small-icon-btn" title="Edit Contact"><Edit size={13} /></button>
+                        </div>
+
+                        <div className="primary-contact-avatar">
+                          <div className="avatar-circle-inner">
+                            <span>JC</span>
+                          </div>
+                        </div>
+
+                        <h3 className="primary-contact-name">Jonathan Chikoro</h3>
+                        <a href="mailto:jonathanchikoro@gmail.com" className="primary-contact-email">jonathanchikoro@gmail.com</a>
+                        <p className="primary-contact-phone">+263 77 790 4725</p>
+
+                        <div className="contact-actions-row">
+                          <button className="action-circle-btn whatsapp" title="Send WhatsApp">
+                            <MessageSquare size={14} />
+                          </button>
+                          <button className="action-circle-btn email" title="Send Email">
+                            <Mail size={14} />
+                          </button>
+                          <button className="action-circle-btn call" title="Call Contact">
+                            <Phone size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Other Contacts Card */}
+                      <div className="sidebar-detail-card other-contacts-panel">
+                        <div className="card-header-row">
+                          <span className="card-title">Other Contacts</span>
+                          <button className="green-plus-circle-btn" title="Add Contact">
+                            <Plus size={13} />
+                          </button>
+                        </div>
+
+                        <div className="other-contact-row">
+                          <div className="other-avatar-circle">BM</div>
+                          <span className="other-contact-name">Barnabas Munz...</span>
+                          <ChevronRight size={14} className="other-chevron" />
+                        </div>
+                      </div>
+
+                      {/* Site Visit Scheduled Card */}
+                      <div className="sidebar-detail-card site-visit-panel">
+                        <p className="visit-status-msg">No site visit scheduled yet</p>
+                        <button 
+                          className="btn-schedule-site-visit"
+                          onClick={() => {
+                            setBookingVenueId(selectedVenue.id);
+                            setActiveTab('add_booking');
+                          }}
+                        >
+                          Schedule Site Visit
+                        </button>
+                      </div>
+
+                      {/* Notes Card */}
+                      <div className="sidebar-detail-card notes-panel">
+                        <div className="card-header-row">
+                          <span className="card-title">Notes</span>
+                          <button className="small-icon-btn" title="Edit Notes">
+                            <Edit size={13} />
+                          </button>
+                        </div>
+                        <p className="notes-content-text">
+                          {selectedVenue.notes || "No notes added yet."}
+                        </p>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()
         )}
 
         {activeTab === 'add_venue' && (

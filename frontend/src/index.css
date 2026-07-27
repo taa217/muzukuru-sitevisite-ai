@@ -1649,3 +1649,678 @@ body {
   }
 }
 
+/* ==========================================
+   VENUE DETAILS PAGE STYLES (MATCHING UI SPEC)
+   ========================================== */
+
+.venue-detail-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 2rem;
+  background-color: var(--bg-main);
+}
+
+.venue-detail-main-layout {
+  width: 100%;
+  max-width: 1450px;
+  margin: 0 auto;
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.venue-detail-left-column {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+/* 1. Hero Banner Container */
+.venue-hero-banner {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(92, 62, 48, 0.12);
+  background-color: #2d231e;
+}
+
+.hero-banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hero-overlay-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.75) 100%);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.hero-edit-btn {
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.hero-edit-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+  transform: scale(1.05);
+}
+
+.hero-left-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: #ffffff;
+}
+
+.hero-type-badge {
+  align-self: flex-start;
+  background: #22c55e;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 12px;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.hero-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.hero-address {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+  margin: 0;
+}
+
+.hero-right-health {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.hero-health-score-ring {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+  border: 2px solid #ffffff;
+}
+
+.hero-health-glass-card {
+  background: rgba(35, 30, 27, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+  width: 230px;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.health-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.health-card-title {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.health-card-completeness {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.7rem;
+}
+
+.health-bar-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.health-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f97316, #22c55e);
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+.health-card-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 2. Key Attributes Strip */
+.venue-stats-strip {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid var(--border-light);
+  padding: 0.9rem 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  box-shadow: 0 4px 15px rgba(92, 62, 48, 0.05);
+}
+
+.stat-strip-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stat-icon-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(140, 98, 57, 0.08);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-text-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.stat-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.stat-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+/* 3. Detail Tabs Bar */
+.venue-details-tabs-bar {
+  display: flex;
+  gap: 1.5rem;
+  border-bottom: 2px solid var(--border-light);
+  padding-left: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.venue-tab-item {
+  background: transparent;
+  border: none;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.75rem 0.25rem;
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition-fast);
+}
+
+.venue-tab-item:hover {
+  color: var(--color-primary);
+}
+
+.venue-tab-item.active {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.venue-tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-primary);
+  border-radius: 3px 3px 0 0;
+}
+
+/* 4. Two Column Layout Body */
+.venue-details-two-col-body {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.venue-details-tab-content-area {
+  flex: 2.2;
+}
+
+.general-tab-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.detail-white-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 15px rgba(92, 62, 48, 0.05);
+}
+
+.card-header-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.card-header-with-action h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.icon-edit-btn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.icon-edit-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--bg-card-hover);
+}
+
+.detail-props-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  font-size: 0.85rem;
+}
+
+.prop-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.prop-label {
+  color: var(--text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.prop-value {
+  color: var(--text-dark);
+  font-weight: 600;
+  text-align: right;
+}
+
+.prop-value-bold {
+  color: var(--text-dark);
+  font-weight: 700;
+  text-align: right;
+}
+
+.prop-value-dash {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.general-tab-image-container {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(92, 62, 48, 0.05);
+  border: 1px solid var(--border-light);
+  height: 100%;
+  max-height: 320px;
+}
+
+.tab-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 5. Right Sidebar Panel */
+.venue-details-right-sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sidebar-detail-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 4px 15px rgba(92, 62, 48, 0.05);
+}
+
+.contact-card-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  padding-top: 2rem;
+}
+
+.card-top-icon-actions {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.small-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  transition: var(--transition-fast);
+}
+
+.small-icon-btn:hover {
+  color: var(--color-primary);
+  background: rgba(92, 62, 48, 0.08);
+}
+
+.primary-contact-avatar {
+  margin-bottom: 0.75rem;
+}
+
+.avatar-circle-inner {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5c3e30, #8c6239);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(92, 62, 48, 0.2);
+}
+
+.primary-contact-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 0.2rem;
+}
+
+.primary-contact-email {
+  font-size: 0.8rem;
+  color: #2563eb;
+  text-decoration: none;
+  margin-bottom: 0.2rem;
+  word-break: break-all;
+}
+
+.primary-contact-email:hover {
+  text-decoration: underline;
+}
+
+.primary-contact-phone {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 1.25rem;
+}
+
+.contact-actions-row {
+  display: flex;
+  gap: 0.85rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.action-circle-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.action-circle-btn.whatsapp {
+  background: #25d366;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(37, 211, 102, 0.25);
+}
+
+.action-circle-btn.email {
+  background: #ec4899;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(236, 72, 153, 0.25);
+}
+
+.action-circle-btn.call {
+  background: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(59, 130, 246, 0.25);
+}
+
+.action-circle-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+/* Other Contacts Panel */
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.card-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.green-plus-circle-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.green-plus-circle-btn:hover {
+  background: #16a34a;
+  transform: scale(1.08);
+}
+
+.other-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem 0;
+  cursor: pointer;
+}
+
+.other-avatar-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.other-contact-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dark);
+  flex: 1;
+}
+
+.other-chevron {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Site Visit Panel */
+.site-visit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.visit-status-msg {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.btn-schedule-site-visit {
+  background: var(--color-primary);
+  color: #ffffff;
+  border: none;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 10px rgba(92, 62, 48, 0.15);
+}
+
+.btn-schedule-site-visit:hover {
+  background: #462f24;
+  transform: translateY(-1px);
+}
+
+/* Notes Panel */
+.notes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.notes-content-text {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Responsive adjustments for venue details */
+@media (max-width: 1024px) {
+  .venue-details-two-col-body {
+    flex-direction: column;
+  }
+  .general-tab-grid {
+    grid-template-columns: 1fr;
+  }
+  .venue-stats-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-right-health {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    align-items: flex-start;
+    margin-top: 1rem;
+  }
+  .hero-health-glass-card {
+    width: 100%;
+  }
+  .venue-hero-banner {
+    height: auto;
+    min-height: 260px;
+  }
+  .venue-stats-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
