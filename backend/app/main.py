@@ -145,6 +145,49 @@ def get_venues():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+@app.get("/api/contacts")
+def get_all_contacts(q: str | None = None):
+    try:
+        if q and q.strip():
+            search_pattern = f"%{q.strip()}%"
+            query = """
+                SELECT id, first_name, last_name, name, email, phone, role, contact_type, contact_source, contact_image
+                FROM contact_contact
+                WHERE name ILIKE %s OR phone ILIKE %s OR email ILIKE %s
+                ORDER BY name ASC NULLS LAST;
+            """
+            cols, rows = execute_read_query(query, (search_pattern, search_pattern, search_pattern))
+        else:
+            query = """
+                SELECT id, first_name, last_name, name, email, phone, role, contact_type, contact_source, contact_image
+                FROM contact_contact
+                ORDER BY name ASC NULLS LAST;
+            """
+            cols, rows = execute_read_query(query)
+            
+        contacts = []
+        for row in rows:
+            name = row[3]
+            if not name:
+                fname = row[1] or ""
+                lname = row[2] or ""
+                name = f"{fname} {lname}".strip() or "Unnamed Contact"
+            contacts.append({
+                "id": str(row[0]),
+                "first_name": row[1],
+                "last_name": row[2],
+                "name": name,
+                "email": row[4],
+                "phone": row[5],
+                "role": row[6] or "Coordinator / Staff",
+                "contact_type": row[7],
+                "contact_source": row[8],
+                "contact_image": row[9]
+            })
+        return contacts
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 @app.get("/api/venues/{venue_id}/contacts")
 def get_venue_contacts(venue_id: int):
     try:
@@ -245,25 +288,44 @@ def get_venue_bookings(venue_id: int):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 class ContactCreate(BaseModel):
-    first_name: str
+    contact_id: int | None = None
+    first_name: str | None = None
     last_name: str | None = None
     email: str | None = None
     phone: str | None = None
     role: str | None = "Venue Contact"
 
+class LayoutCreate(BaseModel):
+    layout_type: str
+    capacity: str | None = None
+
 @app.post("/api/venues/{venue_id}/contacts")
 def create_venue_contact(venue_id: int, contact: ContactCreate):
     try:
-        full_name = f"{contact.first_name} {contact.last_name or ''}".strip()
+        if contact.contact_id:
+            # Link existing contact to venue
+            insert_assoc_query = """
+                INSERT INTO venue_venue_contacts (venue_id, contact_id)
+                VALUES (%s, %s);
+            """
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute(insert_assoc_query, (venue_id, contact.contact_id))
+                conn.commit()
+            conn.close()
+            return {"status": "linked", "contact_id": str(contact.contact_id)}
+
+        first_name = contact.first_name or "Contact"
+        full_name = f"{first_name} {contact.last_name or ''}".strip()
         insert_contact_query = """
-            INSERT INTO contact_contact (first_name, last_name, name, email, phone, role, contact_type, completeness_score)
-            VALUES (%s, %s, %s, %s, %s, %s, 'individual', 50)
+            INSERT INTO contact_contact (first_name, last_name, name, email, phone, role, contact_type, contact_source, completeness_score, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, 'individual', 'manual', 50, NOW(), NOW())
             RETURNING id;
         """
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute(insert_contact_query, (
-                contact.first_name,
+                first_name,
                 contact.last_name,
                 full_name,
                 contact.email,
@@ -282,7 +344,7 @@ def create_venue_contact(venue_id: int, contact: ContactCreate):
         
         return {
             "id": str(contact_id),
-            "first_name": contact.first_name,
+            "first_name": first_name,
             "last_name": contact.last_name,
             "name": full_name,
             "email": contact.email,
@@ -313,6 +375,8 @@ class VenueCreate(BaseModel):
     wifi_password: str | None = None
     has_pa_system: bool = False
     pa_system_provider: str | None = None
+    contacts: List[ContactCreate] = []
+    layouts: List[LayoutCreate] = []
 
 class SiteVisitCreate(BaseModel):
     venue_id: int
@@ -367,12 +431,12 @@ def create_venue(venue: VenueCreate):
                 has_power, power_type, power_backup, internet_service_provider,
                 completeness_score, is_private_residence, notes, time_zone,
                 wifi_name, wifi_password, has_pa_system, pa_system_provider,
-                created_at, updated_at
+                venue_type, created_at, updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, 'Africa/Harare',
-                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
                 NOW(), NOW()
             ) RETURNING id;
         """
@@ -380,7 +444,8 @@ def create_venue(venue: VenueCreate):
             venue.name, venue.address_one, venue.address_two, venue.suburb, venue.city, venue.capacity,
             venue.has_power, venue.power_type, venue.power_backup, venue.internet_service_provider,
             venue.completeness_score, venue.is_private_residence, venue.notes,
-            venue.wifi_name, venue.wifi_password, venue.has_pa_system, venue.pa_system_provider
+            venue.wifi_name, venue.wifi_password, venue.has_pa_system, venue.pa_system_provider,
+            venue.venue_type
         )
         
         conn = get_db_connection()
@@ -388,8 +453,47 @@ def create_venue(venue: VenueCreate):
             with conn.cursor() as cur:
                 cur.execute(query, params)
                 inserted_id = cur.fetchone()[0]
-                conn.commit()
                 
+                # Insert contacts if provided
+                if venue.contacts:
+                    for contact in venue.contacts:
+                        if contact.contact_id:
+                            # Existing DB contact selected
+                            cur.execute("INSERT INTO venue_venue_contacts (venue_id, contact_id) VALUES (%s, %s);", (inserted_id, contact.contact_id))
+                        elif contact.first_name and contact.first_name.strip():
+                            # New contact created
+                            full_name = f"{contact.first_name.strip()} {contact.last_name or ''}".strip()
+                            insert_contact_query = """
+                                INSERT INTO contact_contact (first_name, last_name, name, email, phone, role, contact_type, contact_source, completeness_score, created_at, updated_at)
+                                VALUES (%s, %s, %s, %s, %s, %s, 'individual', 'manual', 50, NOW(), NOW())
+                                RETURNING id;
+                            """
+                            cur.execute(insert_contact_query, (
+                                contact.first_name.strip(),
+                                contact.last_name.strip() if contact.last_name else None,
+                                full_name,
+                                contact.email.strip() if contact.email else None,
+                                contact.phone.strip() if contact.phone else None,
+                                contact.role.strip() if contact.role else "Venue Contact"
+                            ))
+                            c_id = cur.fetchone()[0]
+                            cur.execute("INSERT INTO venue_venue_contacts (venue_id, contact_id) VALUES (%s, %s);", (inserted_id, c_id))
+                
+                # Insert layouts if provided
+                if venue.layouts:
+                    for layout in venue.layouts:
+                        if layout.layout_type and layout.layout_type.strip():
+                            insert_layout_query = """
+                                INSERT INTO venue_venuelayout (venue_id, layout_type, capacity, created_at, updated_at)
+                                VALUES (%s, %s, %s, NOW(), NOW());
+                            """
+                            cur.execute(insert_layout_query, (
+                                inserted_id,
+                                layout.layout_type.strip(),
+                                layout.capacity.strip() if layout.capacity else None
+                            ))
+
+                conn.commit()
                 return {"status": "success", "id": str(inserted_id)}
         except Exception as e:
             conn.rollback()

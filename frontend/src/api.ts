@@ -79,6 +79,20 @@ export interface Venue {
   venue_type: string | null;
   media_urls: any;
   notes?: string | null;
+  wifi_name?: string | null;
+  wifi_password?: string | null;
+  contacts?: Array<{
+    contact_id?: number | string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+  }>;
+  layouts?: Array<{
+    layout_type: string;
+    capacity?: string;
+  }>;
 }
 
 /**
@@ -239,6 +253,15 @@ export async function createVenueContact(venueId: string | number, payload: {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
+  return response.json();
+}
+
+export async function getAllContacts(query?: string): Promise<VenueContact[]> {
+  const url = query ? `/api/contacts?q=${encodeURIComponent(query)}` : '/api/contacts';
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
   return response.json();
 }
 

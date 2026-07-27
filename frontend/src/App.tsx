@@ -45,7 +45,8 @@ import {
   fetchVenueLayouts,
   fetchVenueDocuments,
   fetchVenueBookings,
-  createVenueContact
+  createVenueContact,
+  getAllContacts
 } from './api';
 import type {
   ChatMessage,
@@ -107,9 +108,20 @@ function App() {
   const [selectedVenueType, setSelectedVenueType] = useState('All');
 
   // Form Wizard State for Adding a Venue
+  const [allDbContacts, setAllDbContacts] = useState<VenueContact[]>([]);
   const [formStep, setFormStep] = useState(1);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmittingVenue, setIsSubmittingVenue] = useState(false);
+
+  const getInitials = (name: string) => {
+    if (!name) return 'C';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   const [newVenue, setNewVenue] = useState({
     name: '',
     venue_type: '',
@@ -127,8 +139,25 @@ function App() {
     wifi_password: '',
     has_pa_system: false,
     pa_system_provider: '',
-    is_private_residence: false
+    is_private_residence: false,
+    contacts: [
+      { contact_id: '', mode: 'search' as 'search' | 'selected' | 'manual', searchQuery: '', isOpen: false, first_name: '', last_name: '', email: '', phone: '', role: 'Venue Coordinator' }
+    ],
+    layouts: [] as Array<{ layout_type: string; capacity: string }>
   });
+
+  const loadDbContacts = async () => {
+    try {
+      const data = await getAllContacts();
+      setAllDbContacts(data);
+    } catch (err) {
+      console.error("Failed to load DB contacts:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadDbContacts();
+  }, []);
 
   const calculateCompleteness = () => {
     let score = 20; // base score
@@ -145,6 +174,9 @@ function App() {
     if (newVenue.internet_service_provider) score += 10;
 
     if (newVenue.has_pa_system) score += 5;
+
+    const validContact = newVenue.contacts.some(c => c.contact_id || c.first_name.trim() || c.phone.trim());
+    if (validContact) score += 10;
 
     return Math.min(100, score);
   };
@@ -256,6 +288,24 @@ function App() {
 
     try {
       const completeness = calculateCompleteness();
+      const validContacts = newVenue.contacts
+        .filter(c => c.contact_id || c.first_name.trim() || c.phone.trim())
+        .map(c => ({
+          contact_id: c.contact_id ? parseInt(String(c.contact_id), 10) : undefined,
+          first_name: c.first_name.trim() || undefined,
+          last_name: c.last_name.trim() || undefined,
+          phone: c.phone.trim() || undefined,
+          email: c.email.trim() || undefined,
+          role: c.role.trim() || 'Venue Contact'
+        }));
+
+      const validLayouts = newVenue.layouts
+        .filter(l => l.layout_type.trim())
+        .map(l => ({
+          layout_type: l.layout_type.trim(),
+          capacity: l.capacity.trim() || undefined
+        }));
+
       const payload = {
         name: newVenue.name.trim(),
         venue_type: newVenue.venue_type || null,
@@ -274,7 +324,9 @@ function App() {
         has_pa_system: newVenue.has_pa_system,
         pa_system_provider: newVenue.pa_system_provider.trim() || null,
         is_private_residence: newVenue.is_private_residence,
-        completeness_score: completeness
+        completeness_score: completeness,
+        contacts: validContacts,
+        layouts: validLayouts
       };
 
       await createVenue(payload);
@@ -297,7 +349,11 @@ function App() {
         wifi_password: '',
         has_pa_system: false,
         pa_system_provider: '',
-        is_private_residence: false
+        is_private_residence: false,
+        contacts: [
+          { contact_id: '', mode: 'search', searchQuery: '', isOpen: false, first_name: '', last_name: '', email: '', phone: '', role: 'Venue Coordinator' }
+        ],
+        layouts: []
       });
       setFormStep(1);
       
@@ -2249,25 +2305,421 @@ function App() {
                       </div>
                     )}
 
-                    {/* STEP 5: Rooms */}
+                    {/* STEP 5: Rooms & Layouts */}
                     {formStep === 5 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', padding: '2rem 0' }}>
-                        <Building size={48} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-dark)' }}>Rooms & Layout Options</h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '300px' }}>
-                          Specify room setup details or floor plans. This can also be handled via general notes on Step 1.
-                        </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-dark)' }}>Rooms & Layout Configurations</h3>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Specify seating or room setups available at this venue (e.g. Banquet, Theater, Chapel).</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setNewVenue(prev => ({ ...prev, layouts: [...prev.layouts, { layout_type: '', capacity: '' }] }))}
+                            className="btn-add-venue"
+                            style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          >
+                            <Plus size={14} /> Add Layout
+                          </button>
+                        </div>
+
+                        {newVenue.layouts.length === 0 ? (
+                          <div style={{ padding: '2rem', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed var(--border-light)' }}>
+                            <Building size={32} style={{ color: 'var(--text-muted)', marginBottom: '0.5rem', opacity: 0.6 }} />
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No custom layouts added yet. Click "Add Layout" above to configure room seating types.</p>
+                          </div>
+                        ) : (
+                          newVenue.layouts.map((layout, idx) => (
+                            <div key={idx} style={{ background: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-light)', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                              <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)' }}>Layout Type</label>
+                                <select
+                                  className="header-dropdown"
+                                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                                  value={layout.layout_type}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setNewVenue(prev => {
+                                      const updated = [...prev.layouts];
+                                      updated[idx].layout_type = val;
+                                      return { ...prev, layouts: updated };
+                                    });
+                                  }}
+                                >
+                                  <option value="">Select layout type...</option>
+                                  <option value="Banquet">Banquet</option>
+                                  <option value="Theater">Theater</option>
+                                  <option value="Classroom">Classroom</option>
+                                  <option value="Cocktail / Standing">Cocktail / Standing</option>
+                                  <option value="Boardroom">Boardroom</option>
+                                  <option value="U-Shape">U-Shape</option>
+                                  <option value="Main Chapel">Main Chapel</option>
+                                  <option value="Outdoor Lawn">Outdoor Lawn</option>
+                                </select>
+                              </div>
+
+                              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)' }}>Layout Capacity</label>
+                                <input
+                                  type="text"
+                                  className="filter-search-input"
+                                  placeholder="e.g. 150"
+                                  style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px' }}
+                                  value={layout.capacity}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setNewVenue(prev => {
+                                      const updated = [...prev.layouts];
+                                      updated[idx].capacity = val;
+                                      return { ...prev, layouts: updated };
+                                    });
+                                  }}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewVenue(prev => ({
+                                    ...prev,
+                                    layouts: prev.layouts.filter((_, i) => i !== idx)
+                                  }));
+                                }}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', marginTop: '1.25rem', padding: '0.4rem' }}
+                                title="Remove Layout"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))
+                        )}
                       </div>
                     )}
 
                     {/* STEP 6: Contacts */}
                     {formStep === 6 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', padding: '2rem 0' }}>
-                        <Users size={48} style={{ color: 'var(--text-muted)', opacity: 0.6 }} />
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-dark)' }}>Venue Contact Details</h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '300px' }}>
-                          Add primary contacts, phone numbers, or email addresses in the essentials notes for reference.
-                        </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-dark)' }}>Venue Contact Details</h3>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Search and select contacts from database or create new ones.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setNewVenue(prev => ({
+                              ...prev,
+                              contacts: [...prev.contacts, { contact_id: '', mode: 'search', searchQuery: '', isOpen: false, first_name: '', last_name: '', email: '', phone: '', role: 'Venue Coordinator' }]
+                            }))}
+                            className="btn-add-venue"
+                            style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          >
+                            <Plus size={14} /> Add Another Contact
+                          </button>
+                        </div>
+
+                        {newVenue.contacts.map((contact, idx) => {
+                          const selectedDbContact = allDbContacts.find(c => String(c.id) === String(contact.contact_id));
+
+                          // Filter DB contacts by search query
+                          const filteredDbContacts = allDbContacts.filter(c => {
+                            if (!contact.searchQuery.trim()) return true;
+                            const q = contact.searchQuery.toLowerCase();
+                            return (
+                              (c.name && c.name.toLowerCase().includes(q)) ||
+                              (c.phone && c.phone.toLowerCase().includes(q)) ||
+                              (c.email && c.email.toLowerCase().includes(q)) ||
+                              (c.role && c.role.toLowerCase().includes(q))
+                            );
+                          }).slice(0, 8);
+
+                          return (
+                            <div key={idx} style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.65rem' }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <Users size={16} /> Contact #{idx + 1}
+                                </span>
+
+                                {newVenue.contacts.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewVenue(prev => ({
+                                      ...prev,
+                                      contacts: prev.contacts.filter((_, i) => i !== idx)
+                                    }))}
+                                    style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                                  >
+                                    <Trash2 size={14} /> Remove
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* STATE 1: SELECTED CONTACT VIEW */}
+                              {(contact.mode === 'selected' || contact.contact_id) && selectedDbContact ? (
+                                <div className="selected-contact-card">
+                                  <div className="selected-card-header">
+                                    <div className="selected-card-avatar">
+                                      {getInitials(selectedDbContact.name)}
+                                    </div>
+                                    <div className="selected-card-title-group">
+                                      <h4 className="selected-card-title">{selectedDbContact.name}</h4>
+                                      <div className="selected-card-subtitle">
+                                        {selectedDbContact.role || 'Coordinator / Staff'} • {selectedDbContact.phone || selectedDbContact.email || 'No phone'}
+                                      </div>
+                                      <span className="combobox-badge-db" style={{ display: 'inline-block', marginTop: '0.35rem' }}>
+                                        ✓ Linked Database Contact (#{selectedDbContact.id})
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="btn-change-contact"
+                                      onClick={() => {
+                                        setNewVenue(prev => {
+                                          const updated = [...prev.contacts];
+                                          updated[idx].contact_id = '';
+                                          updated[idx].mode = 'search';
+                                          updated[idx].searchQuery = '';
+                                          return { ...prev, contacts: updated };
+                                        });
+                                      }}
+                                    >
+                                      Change / Unlink
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : contact.mode === 'manual' ? (
+                                /* STATE 2: MANUAL CREATION FORM */
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '0.6rem 0.85rem', borderRadius: '8px' }}>
+                                    <span style={{ fontSize: '0.775rem', color: '#1e40af', fontWeight: 600 }}>
+                                      + Creating New Contact (Will be saved to database)
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="btn-change-contact"
+                                      style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                                      onClick={() => {
+                                        setNewVenue(prev => {
+                                          const updated = [...prev.contacts];
+                                          updated[idx].mode = 'search';
+                                          return { ...prev, contacts: updated };
+                                        });
+                                      }}
+                                    >
+                                      Search DB Contacts instead
+                                    </button>
+                                  </div>
+
+                                  <div className="form-grid-2">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)' }}>First Name <span style={{ color: 'red' }}>*</span></label>
+                                      <input
+                                        type="text"
+                                        className="filter-search-input"
+                                        placeholder="e.g. John"
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px' }}
+                                        value={contact.first_name}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setNewVenue(prev => {
+                                            const updated = [...prev.contacts];
+                                            updated[idx].first_name = val;
+                                            return { ...prev, contacts: updated };
+                                          });
+                                        }}
+                                      />
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)' }}>Last Name</label>
+                                      <input
+                                        type="text"
+                                        className="filter-search-input"
+                                        placeholder="e.g. Muza"
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px' }}
+                                        value={contact.last_name}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setNewVenue(prev => {
+                                            const updated = [...prev.contacts];
+                                            updated[idx].last_name = val;
+                                            return { ...prev, contacts: updated };
+                                          });
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="form-grid-3">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)' }}>Phone Number</label>
+                                      <input
+                                        type="text"
+                                        className="filter-search-input"
+                                        placeholder="e.g. +263 78 891 8512"
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px' }}
+                                        value={contact.phone}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setNewVenue(prev => {
+                                            const updated = [...prev.contacts];
+                                            updated[idx].phone = val;
+                                            return { ...prev, contacts: updated };
+                                          });
+                                        }}
+                                      />
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)' }}>Email Address</label>
+                                      <input
+                                        type="email"
+                                        className="filter-search-input"
+                                        placeholder="e.g. contact@venue.com"
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px' }}
+                                        value={contact.email}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setNewVenue(prev => {
+                                            const updated = [...prev.contacts];
+                                            updated[idx].email = val;
+                                            return { ...prev, contacts: updated };
+                                          });
+                                        }}
+                                      />
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)' }}>Role / Designation</label>
+                                      <input
+                                        type="text"
+                                        className="filter-search-input"
+                                        placeholder="e.g. Venue Coordinator / Manager"
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px' }}
+                                        value={contact.role}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setNewVenue(prev => {
+                                            const updated = [...prev.contacts];
+                                            updated[idx].role = val;
+                                            return { ...prev, contacts: updated };
+                                          });
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* STATE 3: UNIFIED SEARCH COMBOBOX */
+                                <div className="combobox-container">
+                                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.4rem', display: 'block' }}>
+                                    Search or Add Contact
+                                  </label>
+
+                                  <div className="combobox-input-wrapper">
+                                    <Search className="combobox-input-icon" size={16} />
+                                    <input
+                                      type="text"
+                                      className="combobox-input"
+                                      placeholder="Type name, phone, or email to search database contacts..."
+                                      value={contact.searchQuery}
+                                      onFocus={() => {
+                                        setNewVenue(prev => {
+                                          const updated = [...prev.contacts];
+                                          updated[idx].isOpen = true;
+                                          return { ...prev, contacts: updated };
+                                        });
+                                      }}
+                                      onChange={(e) => {
+                                        const q = e.target.value;
+                                        setNewVenue(prev => {
+                                          const updated = [...prev.contacts];
+                                          updated[idx].searchQuery = q;
+                                          updated[idx].isOpen = true;
+                                          return { ...prev, contacts: updated };
+                                        });
+                                      }}
+                                    />
+                                    {contact.searchQuery && (
+                                      <button
+                                        type="button"
+                                        className="combobox-clear-btn"
+                                        onClick={() => {
+                                          setNewVenue(prev => {
+                                            const updated = [...prev.contacts];
+                                            updated[idx].searchQuery = '';
+                                            return { ...prev, contacts: updated };
+                                          });
+                                        }}
+                                      >
+                                        ×
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* FLOATING COMBOBOX DROPDOWN */}
+                                  {contact.isOpen && (
+                                    <div className="combobox-dropdown">
+                                      {filteredDbContacts.length > 0 ? (
+                                        filteredDbContacts.map(c => (
+                                          <div
+                                            key={c.id}
+                                            className="combobox-item"
+                                            onClick={() => {
+                                              setNewVenue(prev => {
+                                                const updated = [...prev.contacts];
+                                                updated[idx].contact_id = c.id;
+                                                updated[idx].first_name = c.first_name || c.name || '';
+                                                updated[idx].last_name = c.last_name || '';
+                                                updated[idx].phone = c.phone || '';
+                                                updated[idx].email = c.email || '';
+                                                updated[idx].role = c.role || 'Venue Contact';
+                                                updated[idx].mode = 'selected';
+                                                updated[idx].isOpen = false;
+                                                return { ...prev, contacts: updated };
+                                              });
+                                            }}
+                                          >
+                                            <div className="combobox-avatar">{getInitials(c.name)}</div>
+                                            <div className="combobox-item-info">
+                                              <div className="combobox-item-title">
+                                                {c.name} <span className="combobox-item-role">• {c.role || 'Staff'}</span>
+                                              </div>
+                                              <div className="combobox-item-sub">
+                                                {c.phone ? `📞 ${c.phone}` : ''} {c.email ? `✉️ ${c.email}` : ''}
+                                              </div>
+                                            </div>
+                                            <span className="combobox-badge-db">DB Contact</span>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div style={{ padding: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                          No contacts found matching "{contact.searchQuery}"
+                                        </div>
+                                      )}
+
+                                      {/* Create New Contact Action */}
+                                      <div
+                                        className="combobox-create-option"
+                                        onClick={() => {
+                                          setNewVenue(prev => {
+                                            const updated = [...prev.contacts];
+                                            updated[idx].mode = 'manual';
+                                            updated[idx].contact_id = '';
+                                            updated[idx].first_name = contact.searchQuery.trim();
+                                            updated[idx].isOpen = false;
+                                            return { ...prev, contacts: updated };
+                                          });
+                                        }}
+                                      >
+                                        <Plus size={14} /> Create "{contact.searchQuery.trim() || 'New Contact'}" as a new contact entry
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -2389,6 +2841,13 @@ function App() {
                       <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>PA System:</span>
                       <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
                         {newVenue.has_pa_system ? `${newVenue.pa_system_provider || 'Built-in'}` : 'No PA Info'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Contacts added:</span>
+                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
+                        {newVenue.contacts.filter(c => c.first_name.trim() || c.phone.trim()).length} contact(s)
                       </span>
                     </div>
                   </div>
