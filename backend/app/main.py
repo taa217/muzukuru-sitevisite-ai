@@ -111,7 +111,8 @@ def get_venues():
         query = """
             SELECT id, name, address_one, address_two, suburb, city, capacity,
                    has_power, power_type, power_backup, internet_service_provider,
-                   completeness_score, is_private_residence, venue_type, media_urls
+                   completeness_score, is_private_residence, venue_type, media_urls,
+                   has_pa_system, pa_system_provider, wifi_name, notes, floor_plan_file_urls
             FROM venue_venue
             ORDER BY completeness_score DESC, name ASC;
         """
@@ -133,11 +134,165 @@ def get_venues():
                 "completeness_score": row[11],
                 "is_private_residence": row[12],
                 "venue_type": row[13],
-                "media_urls": row[14]
+                "media_urls": row[14],
+                "has_pa_system": row[15],
+                "pa_system_provider": row[16],
+                "wifi_name": row[17],
+                "notes": row[18],
+                "floor_plan_file_urls": row[19]
             })
         return venues
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/api/venues/{venue_id}/contacts")
+def get_venue_contacts(venue_id: int):
+    try:
+        query = """
+            SELECT c.id, c.first_name, c.last_name, c.name, c.email, c.phone, c.role, c.contact_type, c.contact_image
+            FROM venue_venue_contacts vc
+            JOIN contact_contact c ON vc.contact_id = c.id
+            WHERE vc.venue_id = %s
+            ORDER BY c.id ASC;
+        """
+        cols, rows = execute_read_query(query, (venue_id,))
+        contacts = []
+        for row in rows:
+            name = row[3]
+            if not name:
+                fname = row[1] or ""
+                lname = row[2] or ""
+                name = f"{fname} {lname}".strip() or "Unnamed Contact"
+            contacts.append({
+                "id": str(row[0]),
+                "first_name": row[1],
+                "last_name": row[2],
+                "name": name,
+                "email": row[4],
+                "phone": row[5],
+                "role": row[6] or "Coordinator / Staff",
+                "contact_type": row[7],
+                "contact_image": row[8]
+            })
+        return contacts
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/api/venues/{venue_id}/layouts")
+def get_venue_layouts(venue_id: int):
+    try:
+        query = """
+            SELECT id, layout_type, capacity
+            FROM venue_venuelayout
+            WHERE venue_id = %s
+            ORDER BY id ASC;
+        """
+        cols, rows = execute_read_query(query, (venue_id,))
+        layouts = []
+        for row in rows:
+            layouts.append({
+                "id": str(row[0]),
+                "layout_type": row[1],
+                "capacity": row[2]
+            })
+        return layouts
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/api/venues/{venue_id}/documents")
+def get_venue_documents(venue_id: int):
+    try:
+        query = """
+            SELECT id, file, file_type, is_cover
+            FROM venue_venuedocument
+            WHERE venue_id = %s
+            ORDER BY is_cover DESC, id ASC;
+        """
+        cols, rows = execute_read_query(query, (venue_id,))
+        docs = []
+        for row in rows:
+            docs.append({
+                "id": str(row[0]),
+                "file": row[1],
+                "file_type": row[2],
+                "is_cover": row[3]
+            })
+        return docs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.get("/api/venues/{venue_id}/bookings")
+def get_venue_bookings(venue_id: int):
+    try:
+        query = """
+            SELECT id, site_visit_date, status, notes, created_at
+            FROM venue_sitevisit
+            WHERE venue_id = %s
+            ORDER BY created_at DESC;
+        """
+        cols, rows = execute_read_query(query, (venue_id,))
+        bookings = []
+        for row in rows:
+            bookings.append({
+                "id": str(row[0]),
+                "site_visit_date": str(row[1]) if row[1] else None,
+                "status": row[2],
+                "notes": row[3],
+                "created_at": str(row[4]) if row[4] else None
+            })
+        return bookings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+class ContactCreate(BaseModel):
+    first_name: str
+    last_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    role: str | None = "Venue Contact"
+
+@app.post("/api/venues/{venue_id}/contacts")
+def create_venue_contact(venue_id: int, contact: ContactCreate):
+    try:
+        full_name = f"{contact.first_name} {contact.last_name or ''}".strip()
+        insert_contact_query = """
+            INSERT INTO contact_contact (first_name, last_name, name, email, phone, role, contact_type, completeness_score)
+            VALUES (%s, %s, %s, %s, %s, %s, 'individual', 50)
+            RETURNING id;
+        """
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(insert_contact_query, (
+                contact.first_name,
+                contact.last_name,
+                full_name,
+                contact.email,
+                contact.phone,
+                contact.role
+            ))
+            contact_id = cur.fetchone()[0]
+            
+            insert_assoc_query = """
+                INSERT INTO venue_venue_contacts (venue_id, contact_id)
+                VALUES (%s, %s);
+            """
+            cur.execute(insert_assoc_query, (venue_id, contact_id))
+            conn.commit()
+        conn.close()
+        
+        return {
+            "id": str(contact_id),
+            "first_name": contact.first_name,
+            "last_name": contact.last_name,
+            "name": full_name,
+            "email": contact.email,
+            "phone": contact.phone,
+            "role": contact.role,
+            "contact_type": "individual"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 
 class VenueCreate(BaseModel):
     name: str = Field(..., min_length=1)

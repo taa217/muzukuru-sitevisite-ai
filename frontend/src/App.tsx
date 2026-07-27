@@ -35,8 +35,27 @@ import {
   Mail,
   ChevronRight
 } from 'lucide-react';
-import { chatWithAgent, getSiteVisits, getVenues, createVenue, createSiteVisit } from './api';
-import type { ChatMessage, SiteVisit, Venue } from './api';
+import {
+  chatWithAgent,
+  getSiteVisits,
+  getVenues,
+  createVenue,
+  createSiteVisit,
+  fetchVenueContacts,
+  fetchVenueLayouts,
+  fetchVenueDocuments,
+  fetchVenueBookings,
+  createVenueContact
+} from './api';
+import type {
+  ChatMessage,
+  SiteVisit,
+  Venue,
+  VenueContact,
+  VenueLayout,
+  VenueDocument,
+  VenueBooking
+} from './api';
 
 interface ContentBlock {
   type: 'text' | 'code' | 'table';
@@ -160,6 +179,64 @@ function App() {
     loadSiteVisits();
     loadVenues();
   }, []);
+
+  // Venue child data states from Neon DB
+  const [venueContacts, setVenueContacts] = useState<VenueContact[]>([]);
+  const [venueLayouts, setVenueLayouts] = useState<VenueLayout[]>([]);
+  const [venueDocuments, setVenueDocuments] = useState<VenueDocument[]>([]);
+  const [venueBookings, setVenueBookings] = useState<VenueBooking[]>([]);
+  const [isLoadingChildData, setIsLoadingChildData] = useState(false);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [newContactData, setNewContactData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    role: 'Venue Coordinator'
+  });
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+
+  // Fetch venue details child data from Neon DB when selected venue changes
+  useEffect(() => {
+    if (selectedVenueId) {
+      setIsLoadingChildData(true);
+      Promise.all([
+        fetchVenueContacts(selectedVenueId).catch(() => []),
+        fetchVenueLayouts(selectedVenueId).catch(() => []),
+        fetchVenueDocuments(selectedVenueId).catch(() => []),
+        fetchVenueBookings(selectedVenueId).catch(() => [])
+      ]).then(([contacts, layouts, docs, bookings]) => {
+        setVenueContacts(contacts);
+        setVenueLayouts(layouts);
+        setVenueDocuments(docs);
+        setVenueBookings(bookings);
+      }).finally(() => {
+        setIsLoadingChildData(false);
+      });
+    }
+  }, [selectedVenueId]);
+
+  const handleAddContact = async () => {
+    if (!selectedVenueId || !newContactData.first_name.trim()) return;
+    setIsSubmittingContact(true);
+    try {
+      const created = await createVenueContact(selectedVenueId, newContactData);
+      setVenueContacts(prev => [...prev, created]);
+      setShowAddContactModal(false);
+      setNewContactData({
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        role: 'Venue Coordinator'
+      });
+    } catch (err: any) {
+      alert(`Failed to add contact to DB: ${err.message || err.toString()}`);
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  };
+
 
   const handleSaveVenue = async () => {
     // Validate
@@ -1417,7 +1494,7 @@ function App() {
                           <div className="stat-icon-circle"><LayoutGrid size={16} /></div>
                           <div className="stat-text-meta">
                             <span className="stat-tag">ROOMS</span>
-                            <span className="stat-val">0</span>
+                            <span className="stat-val">{venueLayouts.length}</span>
                           </div>
                         </div>
                       </div>
@@ -1426,11 +1503,11 @@ function App() {
                       <div className="venue-details-tabs-bar">
                         {[
                           { id: 'general', label: 'General' },
-                          { id: 'rooms', label: 'Rooms' },
-                          { id: 'floor_plans', label: 'Floor Plans' },
+                          { id: 'rooms', label: `Rooms (${venueLayouts.length})` },
+                          { id: 'floor_plans', label: `Floor Plans (${venueDocuments.length})` },
                           { id: 'gallery', label: 'Gallery' },
-                          { id: 'bookings', label: 'Bookings' },
-                          { id: 'contacts', label: 'Contacts' }
+                          { id: 'bookings', label: `Bookings (${venueBookings.length})` },
+                          { id: 'contacts', label: `Contacts (${venueContacts.length})` }
                         ].map(tab => (
                           <button
                             key={tab.id}
@@ -1440,6 +1517,11 @@ function App() {
                             {tab.label}
                           </button>
                         ))}
+                        {isLoadingChildData && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--primary-color)', marginLeft: 'auto', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <Clock size={12} className="spin" /> Syncing Neon DB...
+                          </span>
+                        )}
                       </div>
 
                       {/* 4. TAB CONTENT AREA */}
@@ -1470,7 +1552,7 @@ function App() {
                                 </div>
                                 <div className="prop-row">
                                   <span className="prop-label">Rooms</span>
-                                  <span className="prop-value">0</span>
+                                  <span className="prop-value">{venueLayouts.length}</span>
                                 </div>
                                 <div className="prop-row">
                                   <span className="prop-label">Website</span>
@@ -1507,28 +1589,52 @@ function App() {
                             <div className="card-header-with-action">
                               <h3>Rooms & Spaces</h3>
                             </div>
-                            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                              <Building size={44} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
-                              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>Main Hall Setup</h4>
-                              <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
-                                Dedicated capacity: {selectedVenue.capacity || '300'} seats. No additional sub-rooms recorded.
-                              </p>
-                            </div>
+                            {venueLayouts.length === 0 ? (
+                              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                <Building size={44} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
+                                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>Main Hall Setup</h4>
+                                <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
+                                  Dedicated capacity: {selectedVenue.capacity || '300'} seats. No additional sub-room layouts saved in database.
+                                </p>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                                {venueLayouts.map(layout => (
+                                  <div key={layout.id} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px', background: 'rgba(255,255,255,0.02)' }}>
+                                    <Building size={20} style={{ color: 'var(--accent-gold)', marginBottom: '0.5rem' }} />
+                                    <div style={{ fontWeight: 700, fontSize: '0.9rem', textTransform: 'capitalize' }}>{layout.layout_type} Layout</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Capacity: {layout.capacity || 'Not specified'}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 
                         {venueDetailsTab === 'floor_plans' && (
                           <div className="detail-white-card">
                             <div className="card-header-with-action">
-                              <h3>Floor Plans</h3>
+                              <h3>Floor Plans & Diagrams</h3>
                             </div>
-                            <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                              <ImageIcon size={44} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
-                              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>Layout & Camera Setup</h4>
-                              <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
-                                Floor plan blueprint available for stream camera positioning and audio desk configuration.
-                              </p>
-                            </div>
+                            {venueDocuments.length === 0 ? (
+                              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                <ImageIcon size={44} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
+                                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>No Floor Plan Uploaded</h4>
+                                <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
+                                  No blueprint documents or camera setup diagrams recorded in database for this venue.
+                                </p>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                                {venueDocuments.map(doc => (
+                                  <div key={doc.id} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <ImageIcon size={24} style={{ color: 'var(--primary-color)' }} />
+                                    <div style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file.split('/').pop()}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{doc.file_type || 'Document'}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1562,19 +1668,21 @@ function App() {
                               </button>
                             </div>
                             <div style={{ marginTop: '1rem' }}>
-                              {visits.filter(v => v.venue_name === selectedVenue.name).length === 0 ? (
+                              {venueBookings.length === 0 ? (
                                 <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                                  No site visit bookings currently scheduled for this venue.
+                                  No site visit bookings currently recorded in database for this venue.
                                 </div>
                               ) : (
-                                visits.filter(v => v.venue_name === selectedVenue.name).map(v => (
-                                  <div key={v.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                venueBookings.map(b => (
+                                  <div key={b.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-dark)' }}>{v.notes || 'Site Visit'}</div>
-                                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>{formatDate(v.scheduled_date_time)}</div>
+                                      <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-dark)' }}>{b.notes || 'Site Visit Booking'}</div>
+                                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                        {b.site_visit_date ? new Date(b.site_visit_date).toLocaleString() : 'Date TBD'}
+                                      </div>
                                     </div>
                                     <span style={{ fontSize: '0.72rem', padding: '0.25rem 0.65rem', borderRadius: '12px', background: '#e8f5e9', color: '#2e7d32', fontWeight: 700, textTransform: 'capitalize' }}>
-                                      {v.status}
+                                      {b.status || 'Scheduled'}
                                     </span>
                                   </div>
                                 ))
@@ -1586,25 +1694,38 @@ function App() {
                         {venueDetailsTab === 'contacts' && (
                           <div className="detail-white-card">
                             <div className="card-header-with-action">
-                              <h3>Contacts</h3>
+                              <h3>Contacts ({venueContacts.length})</h3>
+                              <button className="btn-add-venue" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }} onClick={() => setShowAddContactModal(true)}>
+                                <Plus size={14} />
+                                <span>Add Contact</span>
+                              </button>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
-                                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#5c3e30', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem' }}>JC</div>
-                                <div>
-                                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-dark)' }}>Jonathan Chikoro</div>
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Primary Contact • jonathanchikoro@gmail.com • +263 77 790 4725</div>
-                                </div>
+                            {venueContacts.length === 0 ? (
+                              <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                No contacts associated with this venue in database yet.
                               </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
-                                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#8c6239', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem' }}>BM</div>
-                                <div>
-                                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-dark)' }}>Barnabas Munz...</div>
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Secondary Contact</div>
-                                </div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginTop: '1rem' }}>
+                                {venueContacts.map((c, idx) => {
+                                  const initials = c.name ? c.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'VC';
+                                  return (
+                                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: idx === 0 ? '#5c3e30' : '#8c6239', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem' }}>
+                                          {initials}
+                                        </div>
+                                        <div>
+                                          <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-dark)' }}>{c.name}</div>
+                                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                            {idx === 0 ? 'Primary Contact' : 'Secondary Contact'} • {c.role || 'Coordinator'} • {c.email || 'No Email'} • {c.phone || 'No Phone'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1615,54 +1736,92 @@ function App() {
                     <div className="venue-details-right-sidebar">
                       
                       {/* Primary Contact Card */}
-                      <div className="sidebar-detail-card contact-card-panel">
-                        <div className="card-top-icon-actions">
-                          <button className="small-icon-btn" title="Delete Contact"><Trash size={13} /></button>
-                          <button className="small-icon-btn" title="Edit Contact"><Edit size={13} /></button>
-                        </div>
+                      {venueContacts.length > 0 ? (
+                        <div className="sidebar-detail-card contact-card-panel">
+                          <div className="card-top-icon-actions">
+                            <button className="small-icon-btn" title="Delete Contact"><Trash size={13} /></button>
+                            <button className="small-icon-btn" title="Edit Contact"><Edit size={13} /></button>
+                          </div>
 
-                        <div className="primary-contact-avatar">
-                          <div className="avatar-circle-inner">
-                            <span>JC</span>
+                          <div className="primary-contact-avatar">
+                            <div className="avatar-circle-inner">
+                              <span>{venueContacts[0].name ? venueContacts[0].name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'JC'}</span>
+                            </div>
+                          </div>
+
+                          <h3 className="primary-contact-name">{venueContacts[0].name}</h3>
+                          {venueContacts[0].email && (
+                            <a href={`mailto:${venueContacts[0].email}`} className="primary-contact-email">{venueContacts[0].email}</a>
+                          )}
+                          <p className="primary-contact-phone">{venueContacts[0].phone || 'No phone recorded'}</p>
+
+                          <div className="contact-actions-row">
+                            <button className="action-circle-btn whatsapp" title="Send WhatsApp" onClick={() => venueContacts[0].phone && window.open(`https://wa.me/${venueContacts[0].phone.replace(/[^0-9]/g, '')}`, '_blank')}>
+                              <MessageSquare size={14} />
+                            </button>
+                            {venueContacts[0].email && (
+                              <a className="action-circle-btn email" title="Send Email" href={`mailto:${venueContacts[0].email}`}>
+                                <Mail size={14} />
+                              </a>
+                            )}
+                            {venueContacts[0].phone && (
+                              <a className="action-circle-btn call" title="Call Contact" href={`tel:${venueContacts[0].phone}`}>
+                                <Phone size={14} />
+                              </a>
+                            )}
                           </div>
                         </div>
-
-                        <h3 className="primary-contact-name">Jonathan Chikoro</h3>
-                        <a href="mailto:jonathanchikoro@gmail.com" className="primary-contact-email">jonathanchikoro@gmail.com</a>
-                        <p className="primary-contact-phone">+263 77 790 4725</p>
-
-                        <div className="contact-actions-row">
-                          <button className="action-circle-btn whatsapp" title="Send WhatsApp">
-                            <MessageSquare size={14} />
-                          </button>
-                          <button className="action-circle-btn email" title="Send Email">
-                            <Mail size={14} />
-                          </button>
-                          <button className="action-circle-btn call" title="Call Contact">
-                            <Phone size={14} />
+                      ) : (
+                        <div className="sidebar-detail-card contact-card-panel" style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+                          <Users size={32} style={{ opacity: 0.4, margin: '0 auto 0.5rem auto' }} />
+                          <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>No Primary Contact</h4>
+                          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.4rem 0 1rem 0' }}>No contact associated in database for this venue yet.</p>
+                          <button className="btn-add-venue" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', margin: '0 auto' }} onClick={() => setShowAddContactModal(true)}>
+                            <Plus size={13} />
+                            <span>Add Contact</span>
                           </button>
                         </div>
-                      </div>
+                      )}
 
                       {/* Other Contacts Card */}
                       <div className="sidebar-detail-card other-contacts-panel">
                         <div className="card-header-row">
-                          <span className="card-title">Other Contacts</span>
-                          <button className="green-plus-circle-btn" title="Add Contact">
+                          <span className="card-title">Other Contacts ({Math.max(0, venueContacts.length - 1)})</span>
+                          <button className="green-plus-circle-btn" title="Add Contact" onClick={() => setShowAddContactModal(true)}>
                             <Plus size={13} />
                           </button>
                         </div>
 
-                        <div className="other-contact-row">
-                          <div className="other-avatar-circle">BM</div>
-                          <span className="other-contact-name">Barnabas Munz...</span>
-                          <ChevronRight size={14} className="other-chevron" />
-                        </div>
+                        {venueContacts.length <= 1 ? (
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
+                            No secondary contacts saved in DB.
+                          </div>
+                        ) : (
+                          venueContacts.slice(1).map(c => {
+                            const initials = c.name ? c.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'OC';
+                            return (
+                              <div key={c.id} className="other-contact-row">
+                                <div className="other-avatar-circle">{initials}</div>
+                                <span className="other-contact-name">{c.name}</span>
+                                <ChevronRight size={14} className="other-chevron" />
+                              </div>
+                            );
+                          })
+                        )}
                       </div>
 
                       {/* Site Visit Scheduled Card */}
                       <div className="sidebar-detail-card site-visit-panel">
-                        <p className="visit-status-msg">No site visit scheduled yet</p>
+                        {venueBookings.length > 0 ? (
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-dark)' }}>Scheduled Site Visit</div>
+                            <p className="visit-status-msg" style={{ marginTop: '0.2rem' }}>
+                              {venueBookings[0].site_visit_date ? new Date(venueBookings[0].site_visit_date).toLocaleDateString() : 'Date TBD'} • Status: <strong style={{ textTransform: 'capitalize' }}>{venueBookings[0].status}</strong>
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="visit-status-msg">No site visit scheduled yet</p>
+                        )}
                         <button 
                           className="btn-schedule-site-visit"
                           onClick={() => {
@@ -1671,6 +1830,7 @@ function App() {
                           }}
                         >
                           Schedule Site Visit
+
                         </button>
                       </div>
 
@@ -2587,6 +2747,121 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Add Contact Modal */}
+      {showAddContactModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            padding: '1.5rem',
+            width: '90%',
+            maxWidth: '450px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-dark)' }}>Add New Contact to Database</h3>
+              <button 
+                onClick={() => setShowAddContactModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-muted)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>First Name *</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                  placeholder="e.g. Jonathan"
+                  value={newContactData.first_name}
+                  onChange={(e) => setNewContactData({ ...newContactData, first_name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Last Name</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                  placeholder="e.g. Chikoro"
+                  value={newContactData.last_name}
+                  onChange={(e) => setNewContactData({ ...newContactData, last_name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Email Address</label>
+                <input 
+                  type="email" 
+                  className="form-input"
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                  placeholder="e.g. contact@domain.com"
+                  value={newContactData.email}
+                  onChange={(e) => setNewContactData({ ...newContactData, email: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Phone Number</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                  placeholder="e.g. +263 77 123 4567"
+                  value={newContactData.phone}
+                  onChange={(e) => setNewContactData({ ...newContactData, phone: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Role</label>
+                <input 
+                  type="text" 
+                  className="form-input"
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                  placeholder="e.g. Venue Coordinator / Manager"
+                  value={newContactData.role}
+                  onChange={(e) => setNewContactData({ ...newContactData, role: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button 
+                onClick={() => setShowAddContactModal(false)}
+                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-light)', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleAddContact}
+                disabled={isSubmittingContact || !newContactData.first_name.trim()}
+                className="btn-add-venue"
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
+              >
+                {isSubmittingContact ? 'Saving to DB...' : 'Save Contact to DB'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -155,5 +155,93 @@ export async function createSiteVisit(payload: CreateSiteVisitPayload): Promise<
   return response.json();
 }
 
+export interface VenueContact {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  role: string | null;
+  contact_type: string | null;
+  contact_image: string | null;
+}
+
+export interface VenueLayout {
+  id: string;
+  layout_type: string;
+  capacity: string | null;
+}
+
+export interface VenueDocument {
+  id: string;
+  file: string;
+  file_type: string;
+  is_cover: boolean;
+}
+
+export interface VenueBooking {
+  id: string;
+  site_visit_date: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export async function fetchVenueContacts(venueId: string | number): Promise<VenueContact[]> {
+  const response = await fetch(`/api/venues/${venueId}/contacts`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchVenueLayouts(venueId: string | number): Promise<VenueLayout[]> {
+  const response = await fetch(`/api/venues/${venueId}/layouts`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchVenueDocuments(venueId: string | number): Promise<VenueDocument[]> {
+  const response = await fetch(`/api/venues/${venueId}/documents`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchVenueBookings(venueId: string | number): Promise<VenueBooking[]> {
+  const response = await fetch(`/api/venues/${venueId}/bookings`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createVenueContact(venueId: string | number, payload: {
+  first_name: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+}): Promise<VenueContact> {
+  const response = await fetch(`/api/venues/${venueId}/contacts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+
 
 
