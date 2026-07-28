@@ -1113,6 +1113,19 @@ function App() {
     };
   };
 
+  const parseAssignedCrewNames = (visit: SiteVisit): string[] => {
+    if (visit.assigned_crew && Array.isArray(visit.assigned_crew) && visit.assigned_crew.length > 0) {
+      return visit.assigned_crew.map(c => c.name).filter(Boolean);
+    }
+    if (visit.notes) {
+      const match = visit.notes.match(/Assigned Crew:\s*([^;\n]+)/i);
+      if (match && match[1]) {
+        return match[1].split(',').map(n => n.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  };
+
   return (
     <div className="app-layout">
       {/* NARROW SIDEBAR */}
@@ -1231,6 +1244,7 @@ function App() {
                   ) : (
                     filteredVisits.map(visit => {
                       const colors = getStatusColors(visit.status);
+                      const assignedCrewNames = parseAssignedCrewNames(visit);
                       return (
                         <div
                           key={visit.id}
@@ -1265,6 +1279,24 @@ function App() {
                               </div>
                             )}
                           </div>
+
+                          {/* Assigned Crew Badges */}
+                          {assignedCrewNames.length > 0 && (
+                            <div className="visit-assigned-crew-container">
+                              <div className="visit-assigned-crew-header">
+                                <Users size={11} className="visit-assigned-crew-icon" />
+                                <span>Assigned Crew</span>
+                              </div>
+                              <div className="visit-assigned-crew-badges">
+                                {assignedCrewNames.map((name, i) => (
+                                  <span key={i} className="visit-crew-badge">
+                                    <span className="visit-crew-dot"></span>
+                                    {name}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -4337,8 +4369,66 @@ function App() {
 
               {/* Select Crew Members Section */}
               <div className="schedule-form-group">
-                <label className="schedule-form-label">Select Crew Members</label>
-                <div className="schedule-search-wrapper">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                  <label className="schedule-form-label" style={{ marginBottom: 0 }}>Select Crew Members</label>
+                  <span className="schedule-assigned-count-tag">
+                    {assignedCrewIds.length} {assignedCrewIds.length === 1 ? 'person assigned' : 'people assigned'}
+                  </span>
+                </div>
+
+                {/* Assigned Crew Badges Summary Bar */}
+                <div className="schedule-assigned-bar">
+                  <div className="schedule-assigned-bar-header">
+                    <Users size={14} className="schedule-assigned-bar-icon" />
+                    <span>Assigned Crew:</span>
+                  </div>
+
+                  {(() => {
+                    const combined = [...defaultCrewList];
+                    allDbContacts.forEach(contact => {
+                      if (!combined.some(c => c.id === contact.id || c.name.toLowerCase() === contact.name.toLowerCase())) {
+                        combined.push(contact);
+                      }
+                    });
+
+                    const assignedMembers = combined.filter(c => assignedCrewIds.includes(c.id));
+
+                    if (assignedMembers.length === 0) {
+                      return (
+                        <div className="schedule-assigned-empty">
+                          No crew members assigned yet. Click <strong>ASSIGN</strong> on a crew card below.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="schedule-assigned-badges-wrapper">
+                        {assignedMembers.map(member => (
+                          <div key={member.id} className="schedule-assigned-chip">
+                            {member.contact_image ? (
+                              <img src={member.contact_image} alt={member.name} className="schedule-assigned-chip-avatar" />
+                            ) : (
+                              <div className="schedule-assigned-chip-avatar-placeholder">
+                                {getInitials(member.name)}
+                              </div>
+                            )}
+                            <span className="schedule-assigned-chip-name">{member.name}</span>
+                            <button
+                              type="button"
+                              className="schedule-assigned-chip-remove"
+                              title={`Unassign ${member.name}`}
+                              onClick={() => setAssignedCrewIds(assignedCrewIds.filter(id => id !== member.id))}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="schedule-search-wrapper" style={{ marginTop: '0.75rem' }}>
                   <Search size={18} className="schedule-search-icon" />
                   <input 
                     type="text"
@@ -4376,7 +4466,7 @@ function App() {
                     return filtered.map((member) => {
                       const isAssigned = assignedCrewIds.includes(member.id);
                       return (
-                        <div key={member.id} className="schedule-crew-card">
+                        <div key={member.id} className={`schedule-crew-card ${isAssigned ? 'assigned' : ''}`}>
                           {member.contact_image ? (
                             <img src={member.contact_image} alt={member.name} className="schedule-crew-avatar" />
                           ) : (
@@ -4394,7 +4484,9 @@ function App() {
                             ))}
                           </div>
 
-                          <div className="schedule-crew-badge">Available</div>
+                          <div className={`schedule-crew-badge ${isAssigned ? 'assigned' : ''}`}>
+                            {isAssigned ? '✓ Assigned' : 'Available'}
+                          </div>
 
                           {/* Display Contact Information on Crew Card */}
                           <div className="schedule-crew-contact-details">
@@ -4444,7 +4536,7 @@ function App() {
                               }
                             }}
                           >
-                            {isAssigned ? 'ASSIGNED' : 'ASSIGN'}
+                            {isAssigned ? '✓ ASSIGNED' : 'ASSIGN'}
                           </button>
                         </div>
                       );

@@ -3472,6 +3472,184 @@ input:checked + .switch-slider:before {
   font-weight: 600;
 }
 
+/* Assigned Crew Badges UI */
+.schedule-assigned-count-tag {
+  background: #fdf8f4;
+  color: #7c5237;
+  border: 1px solid #ebd5c1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+}
+
+.schedule-assigned-bar {
+  background: #faf8f5;
+  border: 1px solid #ebd5c1;
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.schedule-assigned-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #7c5237;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.schedule-assigned-bar-icon {
+  color: #7c5237;
+}
+
+.schedule-assigned-empty {
+  font-size: 0.78rem;
+  color: #7a685e;
+  font-style: italic;
+  padding: 0.1rem 0;
+}
+
+.schedule-assigned-badges-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.schedule-assigned-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #ffffff;
+  border: 1px solid #7c5237;
+  border-radius: 20px;
+  padding: 0.25rem 0.6rem 0.25rem 0.3rem;
+  box-shadow: 0 2px 4px rgba(124, 82, 55, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.schedule-assigned-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(124, 82, 55, 0.12);
+}
+
+.schedule-assigned-chip-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.schedule-assigned-chip-avatar-placeholder {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #7c5237;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.schedule-assigned-chip-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2d231e;
+}
+
+.schedule-assigned-chip-remove {
+  background: rgba(124, 82, 55, 0.1);
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7c5237;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.schedule-assigned-chip-remove:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* Assigned indicator on crew cards */
+.schedule-crew-card.assigned {
+  border-color: #2e7d32;
+  background: #fcfdfc;
+  box-shadow: 0 3px 10px rgba(46, 125, 50, 0.1);
+}
+
+.schedule-crew-badge.assigned {
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-weight: 700;
+}
+
+/* Active schedule visit card assigned crew badges */
+.visit-assigned-crew-container {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.visit-assigned-crew-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.visit-assigned-crew-icon {
+  color: #7c5237;
+}
+
+.visit-assigned-crew-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.visit-crew-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(124, 82, 55, 0.08);
+  border: 1px solid rgba(124, 82, 55, 0.2);
+  color: #5c3e30;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+}
+
+.visit-crew-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #7c5237;
+}
+
 
 
 

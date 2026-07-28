@@ -47,6 +47,12 @@ export interface SiteVisit {
   notes: string | null;
   venue_name: string;
   venue_address: string | null;
+  assigned_crew?: Array<{
+    id?: string | null;
+    name: string;
+    phone?: string | null;
+    role?: string | null;
+  }> | null;
 }
 
 /**
