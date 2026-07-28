@@ -108,10 +108,49 @@ function App() {
   // Schedule Site Visit Modal State
   const [isScheduleVisitModalOpen, setIsScheduleVisitModalOpen] = useState<boolean>(false);
   const [scheduleVisitVenue, setScheduleVisitVenue] = useState<Venue | null>(null);
+  const [scheduleVisitContacts, setScheduleVisitContacts] = useState<VenueContact[]>([]);
+  const [selectedScheduleContactId, setSelectedScheduleContactId] = useState<string>('');
+  const [isLoadingScheduleContacts, setIsLoadingScheduleContacts] = useState<boolean>(false);
   const [scheduleVisitDate, setScheduleVisitDate] = useState<string>('');
   const [crewSearchQuery, setCrewSearchQuery] = useState<string>('');
   const [assignedCrewIds, setAssignedCrewIds] = useState<string[]>(['960']);
   const [isSubmittingSiteVisit, setIsSubmittingSiteVisit] = useState<boolean>(false);
+
+  // Fetch venue contacts for the visit modal whenever selected venue changes
+  useEffect(() => {
+    if (scheduleVisitVenue && scheduleVisitVenue.id) {
+      setIsLoadingScheduleContacts(true);
+      fetchVenueContacts(scheduleVisitVenue.id)
+        .then(contacts => {
+          setScheduleVisitContacts(contacts);
+          if (contacts.length > 0) {
+            setSelectedScheduleContactId(String(contacts[0].id));
+          } else {
+            setSelectedScheduleContactId('');
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load schedule visit contacts:", err);
+          setScheduleVisitContacts([]);
+          setSelectedScheduleContactId('');
+        })
+        .finally(() => {
+          setIsLoadingScheduleContacts(false);
+        });
+    } else {
+      setScheduleVisitContacts([]);
+      setSelectedScheduleContactId('');
+    }
+  }, [scheduleVisitVenue?.id]);
+
+  const activeScheduleContact = scheduleVisitContacts.find(
+    c => String(c.id) === String(selectedScheduleContactId)
+  ) || (scheduleVisitContacts.length > 0 ? scheduleVisitContacts[0] : null);
+
+  const activeScheduleContactPhone = activeScheduleContact?.phone || scheduleVisitVenue?.pa_system_contact_phone || null;
+  const activeScheduleContactName = activeScheduleContact
+    ? (activeScheduleContact.name || [activeScheduleContact.first_name, activeScheduleContact.last_name].filter(Boolean).join(' ') || 'Venue Coordinator')
+    : (scheduleVisitVenue?.pa_system_contact_phone ? 'Technical / PA Coordinator' : null);
 
   const defaultCrewList: VenueContact[] = [
     {
@@ -200,17 +239,30 @@ function App() {
         .join(', ');
 
       const notes = assignedNames ? `Assigned Crew: ${assignedNames}` : 'Site visit scheduled via UI modal';
+      const contactIdToPass = activeScheduleContact ? parseInt(String(activeScheduleContact.id), 10) : null;
 
       await createSiteVisit({
         venue_id: parseInt(scheduleVisitVenue.id, 10),
         scheduled_date_time: scheduleVisitDate,
         notes: notes,
-        status: 'scheduled'
+        status: 'scheduled',
+        contact_id: contactIdToPass
       });
 
       setIsScheduleVisitModalOpen(false);
       loadSiteVisits();
-      alert(`Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!\n\nMuzukuru AI (Nyasha) will automatically contact the venue coordinator via WhatsApp to confirm the site visit details.`);
+
+      if (activeScheduleContactPhone) {
+        alert(
+          `Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!\n\n` +
+          `Muzukuru AI (Nyasha) is now contacting ${activeScheduleContactName} (${activeScheduleContactPhone}) via WhatsApp to confirm the site visit details.`
+        );
+      } else {
+        alert(
+          `Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!\n\n` +
+          `Note: No venue coordinator phone number is recorded for this venue. Please add a contact in Venue Details to enable automated WhatsApp outreach.`
+        );
+      }
     } catch (err: any) {
       alert(`Error scheduling site visit: ${err.message || err}`);
     } finally {
@@ -4209,20 +4261,56 @@ function App() {
               )}
 
               {/* AI Agent Automated Outreach Notice */}
-              <div className="schedule-agent-notice">
-                <div className="schedule-agent-notice-icon">
-                  <Bot size={18} />
-                </div>
-                <div className="schedule-agent-notice-content">
-                  <div className="schedule-agent-notice-title">
-                    <span>Automated Coordinator Outreach</span>
-                    <span className="schedule-agent-notice-tag">WhatsApp Agent</span>
+              {activeScheduleContactPhone ? (
+                <div className="schedule-agent-notice">
+                  <div className="schedule-agent-notice-icon">
+                    <Bot size={18} />
                   </div>
-                  <div className="schedule-agent-notice-text">
-                    Upon scheduling, Muzukuru AI Assistant (Nyasha) will automatically contact the venue coordinator via WhatsApp to confirm availability, access instructions, and site details.
+                  <div className="schedule-agent-notice-content">
+                    <div className="schedule-agent-notice-title">
+                      <span>Automated Coordinator Outreach</span>
+                      <span className="schedule-agent-notice-tag">WhatsApp Agent</span>
+                    </div>
+                    <div className="schedule-agent-notice-text">
+                      Upon scheduling, Muzukuru AI Assistant (Nyasha) will automatically contact <strong>{activeScheduleContactName}</strong> (<span style={{ color: '#7c5237', fontWeight: 600 }}>{activeScheduleContactPhone}</span>) via WhatsApp to confirm availability, access instructions, and site details.
+                    </div>
+
+                    {scheduleVisitContacts.length > 1 && (
+                      <div className="schedule-agent-contact-selector">
+                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#4b5563' }}>
+                          Target Coordinator:
+                        </label>
+                        <select
+                          className="schedule-contact-dropdown"
+                          value={selectedScheduleContactId}
+                          onChange={(e) => setSelectedScheduleContactId(e.target.value)}
+                        >
+                          {scheduleVisitContacts.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name || `${c.first_name || ''} ${c.last_name || ''}`} ({c.phone || 'No phone'}) - {c.role || 'Coordinator'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="schedule-agent-notice warning">
+                  <div className="schedule-agent-notice-icon warning">
+                    <AlertCircle size={18} />
+                  </div>
+                  <div className="schedule-agent-notice-content">
+                    <div className="schedule-agent-notice-title">
+                      <span>No Coordinator Contact Info</span>
+                      <span className="schedule-agent-notice-tag warning">Action Needed</span>
+                    </div>
+                    <div className="schedule-agent-notice-text">
+                      No contact phone number is currently recorded for <strong>{scheduleVisitVenue?.name || 'this venue'}</strong>. Muzukuru AI will schedule the visit, but cannot initiate WhatsApp outreach until a contact phone number is added in Venue Details.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Select Date Section */}
               <div className="schedule-form-group">
