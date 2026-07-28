@@ -12,6 +12,7 @@ import {
   Trash2,
   Copy,
   Check,
+  CheckCircle2,
   CalendarClock,
   Database,
   Home,
@@ -62,6 +63,21 @@ import type {
   VenueDocument,
   VenueBooking
 } from './api';
+
+interface BookingSuccessInfo {
+  venueName: string;
+  date: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  assignedCrew: { id: string; name: string; role?: string }[];
+  hasContact: boolean;
+}
+
+interface ToastNotification {
+  id: number;
+  message: string;
+  type: 'error' | 'warning' | 'info' | 'success';
+}
 
 interface ContentBlock {
   type: 'text' | 'code' | 'table';
@@ -115,6 +131,18 @@ function App() {
   const [crewSearchQuery, setCrewSearchQuery] = useState<string>('');
   const [assignedCrewIds, setAssignedCrewIds] = useState<string[]>(['960']);
   const [isSubmittingSiteVisit, setIsSubmittingSiteVisit] = useState<boolean>(false);
+
+  // Booking Success Modal & Toast State
+  const [bookingSuccessInfo, setBookingSuccessInfo] = useState<BookingSuccessInfo | null>(null);
+  const [toastNotification, setToastNotification] = useState<ToastNotification | null>(null);
+
+  const showToast = (message: string, type: 'error' | 'warning' | 'info' | 'success' = 'info') => {
+    const id = Date.now();
+    setToastNotification({ id, message, type });
+    setTimeout(() => {
+      setToastNotification(current => (current?.id === id ? null : current));
+    }, 4000);
+  };
 
   // Fetch venue contacts for the visit modal whenever selected venue changes
   useEffect(() => {
@@ -216,11 +244,11 @@ function App() {
 
   const handleScheduleVisitSubmit = async () => {
     if (!scheduleVisitVenue) {
-      alert('Please select a venue for the site visit.');
+      showToast('Please select a venue for the site visit.', 'warning');
       return;
     }
     if (!scheduleVisitDate) {
-      alert('Please select a date for the site visit.');
+      showToast('Please select a date for the site visit.', 'warning');
       return;
     }
 
@@ -260,19 +288,16 @@ function App() {
       setIsScheduleVisitModalOpen(false);
       loadSiteVisits();
 
-      if (activeScheduleContactPhone) {
-        alert(
-          `Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!\n\n` +
-          `Muzukuru AI (Nyasha) is now contacting ${activeScheduleContactName} (${activeScheduleContactPhone}) via WhatsApp to confirm the site visit details.`
-        );
-      } else {
-        alert(
-          `Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!\n\n` +
-          `Note: No venue coordinator phone number is recorded for this venue. Please add a contact in Venue Details to enable automated WhatsApp outreach.`
-        );
-      }
+      setBookingSuccessInfo({
+        venueName: scheduleVisitVenue.name,
+        date: scheduleVisitDate,
+        contactName: activeScheduleContactName,
+        contactPhone: activeScheduleContactPhone,
+        assignedCrew: assignedCrewObjects.map(c => ({ id: String(c.id), name: c.name, role: c.role || undefined })),
+        hasContact: !!activeScheduleContactPhone
+      });
     } catch (err: any) {
-      alert(`Error scheduling site visit: ${err.message || err}`);
+      showToast(`Error scheduling site visit: ${err.message || err}`, 'error');
     } finally {
       setIsSubmittingSiteVisit(false);
     }
@@ -624,7 +649,7 @@ function App() {
       setActiveTab('venues');
     } catch (err: any) {
       console.error("Failed to save venue:", err);
-      alert(`Error saving venue: ${err.message || err.toString()}`);
+      showToast(`Error saving venue: ${err.message || err.toString()}`, 'error');
     } finally {
       setIsSubmittingVenue(false);
     }
@@ -4559,8 +4584,151 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Modern Booking Success Modal */}
+      {bookingSuccessInfo && (
+        <div className="booking-success-modal-overlay" onClick={() => setBookingSuccessInfo(null)}>
+          <div className="booking-success-modal-container" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="booking-success-close-btn"
+              onClick={() => setBookingSuccessInfo(null)}
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Icon Header with animation */}
+            <div className="booking-success-header">
+              <div className="booking-success-icon-badge">
+                <CheckCircle2 size={38} className="booking-success-check-icon" />
+              </div>
+              <h3 className="booking-success-title">Site Visit Scheduled!</h3>
+              <p className="booking-success-subtitle">
+                Your site visit has been successfully created and registered in the system.
+              </p>
+            </div>
+
+            {/* Details Summary Card */}
+            <div className="booking-success-details-card">
+              <div className="booking-success-detail-row">
+                <Building size={16} className="booking-success-detail-icon" />
+                <div className="booking-success-detail-content">
+                  <span className="booking-success-detail-label">Venue</span>
+                  <span className="booking-success-detail-value">{bookingSuccessInfo.venueName}</span>
+                </div>
+              </div>
+
+              <div className="booking-success-detail-row">
+                <Calendar size={16} className="booking-success-detail-icon" />
+                <div className="booking-success-detail-content">
+                  <span className="booking-success-detail-label">Scheduled Date</span>
+                  <span className="booking-success-detail-value">
+                    {new Date(bookingSuccessInfo.date).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {bookingSuccessInfo.assignedCrew && bookingSuccessInfo.assignedCrew.length > 0 && (
+                <div className="booking-success-detail-row">
+                  <Users size={16} className="booking-success-detail-icon" />
+                  <div className="booking-success-detail-content">
+                    <span className="booking-success-detail-label">Assigned Crew</span>
+                    <div className="booking-success-crew-list">
+                      {bookingSuccessInfo.assignedCrew.map(crew => (
+                        <span key={crew.id} className="booking-success-crew-chip">
+                          {crew.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* AI WhatsApp Dispatch Notice Box */}
+            {bookingSuccessInfo.hasContact ? (
+              <div className="booking-whatsapp-dispatch-card">
+                <div className="booking-whatsapp-header">
+                  <div className="booking-whatsapp-badge">
+                    <span className="whatsapp-pulse-dot"></span>
+                    <span>Muzukuru AI (Nyasha) Active</span>
+                  </div>
+                  <span className="whatsapp-tag">WhatsApp Outreach</span>
+                </div>
+                <div className="booking-whatsapp-body">
+                  <Bot size={22} className="booking-whatsapp-bot-icon" />
+                  <div className="booking-whatsapp-text">
+                    Dispatching automated outreach to <strong>{bookingSuccessInfo.contactName}</strong> (
+                    <span className="booking-whatsapp-phone">{bookingSuccessInfo.contactPhone}</span>) via WhatsApp to confirm site details.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="booking-whatsapp-dispatch-card warning">
+                <div className="booking-whatsapp-header">
+                  <div className="booking-whatsapp-badge warning">
+                    <AlertCircle size={14} />
+                    <span>No Coordinator Phone</span>
+                  </div>
+                  <span className="whatsapp-tag warning">Action Needed</span>
+                </div>
+                <div className="booking-whatsapp-body">
+                  <Info size={20} className="booking-whatsapp-bot-icon warning" />
+                  <div className="booking-whatsapp-text">
+                    No phone number recorded for this venue's coordinator. Please add a phone number in Venue Details to enable automated WhatsApp outreach.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer Action Buttons */}
+            <div className="booking-success-actions">
+              {bookingSuccessInfo.hasContact && bookingSuccessInfo.contactPhone && (
+                <button
+                  type="button"
+                  className="booking-success-btn-secondary"
+                  onClick={() => {
+                    const cleanPhone = bookingSuccessInfo.contactPhone?.replace(/[^0-9+]/g, '');
+                    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+                  }}
+                >
+                  <MessageSquare size={16} />
+                  <span>Open WhatsApp</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="booking-success-btn-primary"
+                onClick={() => setBookingSuccessInfo(null)}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Toast Notification */}
+      {toastNotification && (
+        <div className={`booking-toast-banner ${toastNotification.type}`}>
+          {toastNotification.type === 'error' && <AlertCircle size={18} />}
+          {toastNotification.type === 'warning' && <AlertCircle size={18} />}
+          {toastNotification.type === 'success' && <CheckCircle2 size={18} />}
+          {toastNotification.type === 'info' && <Info size={18} />}
+          <span className="booking-toast-message">{toastNotification.message}</span>
+          <button className="booking-toast-close" onClick={() => setToastNotification(null)}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 export default App;
+
