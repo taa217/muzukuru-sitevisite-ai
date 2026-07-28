@@ -2980,4 +2980,354 @@ input:checked + .switch-slider:before {
   background: #4a2c1a;
 }
 
+/* ==========================================
+   SCHEDULE SITE VISIT MODAL STYLES
+   ========================================== */
+.schedule-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeInModal 0.2s ease-out;
+}
+
+@keyframes fadeInModal {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.schedule-modal-container {
+  background: #ffffff;
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  font-family: inherit;
+}
+
+.schedule-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.schedule-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #2c2c2c;
+  margin: 0;
+}
+
+.schedule-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #666666;
+  cursor: pointer;
+  padding: 0.35rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.schedule-modal-close-btn:hover {
+  background: #f3f4f6;
+  color: #111111;
+}
+
+.schedule-modal-body {
+  padding: 1.5rem 1.75rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Venue Details Top Card */
+.schedule-venue-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  background: #ffffff;
+}
+
+.schedule-venue-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #888888;
+  margin-bottom: 0.25rem;
+}
+
+.schedule-venue-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 0.35rem;
+}
+
+.schedule-venue-card-location {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #666666;
+}
+
+/* Form Group Sections */
+.schedule-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.schedule-form-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #333333;
+}
+
+.schedule-date-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.schedule-date-input {
+  width: 100%;
+  padding: 0.7rem 2.5rem 0.7rem 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #333333;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.schedule-date-input:focus {
+  border-color: #7c5237;
+  box-shadow: 0 0 0 2px rgba(124, 82, 55, 0.1);
+}
+
+.schedule-date-icon {
+  position: absolute;
+  right: 0.9rem;
+  color: #2c2c2c;
+  pointer-events: none;
+}
+
+/* Search input for Crew members */
+.schedule-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.schedule-search-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem 0.7rem 2.5rem;
+  border: 1.5px solid #7c5237;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #333333;
+  outline: none;
+}
+
+.schedule-search-icon {
+  position: absolute;
+  left: 0.9rem;
+  color: #666666;
+  pointer-events: none;
+}
+
+.schedule-search-subtext {
+  font-size: 0.75rem;
+  color: #888888;
+  margin-top: 0.2rem;
+}
+
+/* Crew Members List / Grid */
+.schedule-crew-grid {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.schedule-crew-card {
+  background: #f4f6f8;
+  border-radius: 16px;
+  padding: 1.25rem 1rem;
+  min-width: 220px;
+  max-width: 240px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.schedule-crew-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.schedule-crew-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #5c3826;
+}
+
+.schedule-crew-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #2c2c2c;
+  margin: 0;
+}
+
+.schedule-crew-stars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #d1d5db;
+}
+
+.schedule-crew-badge {
+  background: #ffffff;
+  color: #4b5563;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.9rem;
+  border-radius: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.schedule-crew-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 0.2rem;
+}
+
+.schedule-crew-icon-btn {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.schedule-crew-icon-btn:hover {
+  color: #111827;
+}
+
+.schedule-crew-assign-btn {
+  width: 100%;
+  background: #6f4227;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  margin-top: 0.4rem;
+}
+
+.schedule-crew-assign-btn:hover {
+  background: #58331d;
+}
+
+.schedule-crew-assign-btn.assigned {
+  background: #2e7d32;
+}
+
+/* Modal Footer */
+.schedule-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.25rem 1.75rem;
+  border-top: 1px solid #f0f0f0;
+  background: #ffffff;
+}
+
+.schedule-modal-cancel-btn {
+  background: transparent;
+  border: none;
+  color: #4b5563;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.schedule-modal-cancel-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.schedule-modal-submit-btn {
+  background: #7c5237;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 2px 6px rgba(124, 82, 55, 0.2);
+}
+
+.schedule-modal-submit-btn:hover:not(:disabled) {
+  background: #633f28;
+}
+
+.schedule-modal-submit-btn:disabled {
+  background: #e0e0e0;
+  color: #9e9e9e;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+
 

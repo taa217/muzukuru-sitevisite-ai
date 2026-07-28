@@ -36,7 +36,9 @@ import {
   ChevronRight,
   Upload,
   Eye,
-  Volume2
+  Volume2,
+  Star,
+  X
 } from 'lucide-react';
 import {
   chatWithAgent,
@@ -102,6 +104,119 @@ function App() {
   const [isSubmittingBooking, setIsSubmittingBooking] = useState<boolean>(false);
   const [bookingSuccessMsg, setBookingSuccessMsg] = useState<string | null>(null);
   const [bookingFormError, setBookingFormError] = useState<string | null>(null);
+
+  // Schedule Site Visit Modal State
+  const [isScheduleVisitModalOpen, setIsScheduleVisitModalOpen] = useState<boolean>(false);
+  const [scheduleVisitVenue, setScheduleVisitVenue] = useState<Venue | null>(null);
+  const [scheduleVisitDate, setScheduleVisitDate] = useState<string>('');
+  const [crewSearchQuery, setCrewSearchQuery] = useState<string>('');
+  const [assignedCrewIds, setAssignedCrewIds] = useState<string[]>(['960']);
+  const [isSubmittingSiteVisit, setIsSubmittingSiteVisit] = useState<boolean>(false);
+
+  const defaultCrewList: VenueContact[] = [
+    {
+      id: '960',
+      first_name: 'Clyde',
+      last_name: 'Tadiwa',
+      name: 'Clyde Tadiwa',
+      email: 'clyde@muzukuru.com',
+      phone: '+263781646052',
+      role: 'Crew Member / Live Producer',
+      contact_type: 'individual',
+      contact_image: '/clyde_tadiwa.png'
+    },
+    {
+      id: 'leon',
+      first_name: 'Leon',
+      last_name: '',
+      name: 'Leon',
+      email: 'leon@muzukuru.com',
+      phone: '+263771453985',
+      role: 'Crew Leader / CEO',
+      contact_type: 'individual',
+      contact_image: '/leon.png'
+    },
+    {
+      id: 'max',
+      first_name: 'Max',
+      last_name: '',
+      name: 'Max',
+      email: 'max@muzukuru.com',
+      phone: '+263718834117',
+      role: 'Tech Specialist',
+      contact_type: 'individual',
+      contact_image: '/max.png'
+    },
+    {
+      id: '961',
+      first_name: 'Cris',
+      last_name: '',
+      name: 'Cris',
+      email: 'cris@muzukuru.com',
+      phone: '+263780642578',
+      role: 'Crew Member',
+      contact_type: 'individual',
+      contact_image: null
+    }
+  ];
+
+  const openScheduleVisitModal = (venueToSchedule?: Venue | null) => {
+    let targetVenue = venueToSchedule;
+    if (!targetVenue && selectedVenueId) {
+      targetVenue = venues.find(v => v.id === selectedVenueId) || null;
+    }
+    if (!targetVenue && venues.length > 0) {
+      targetVenue = venues[0];
+    }
+    setScheduleVisitVenue(targetVenue || null);
+    setScheduleVisitDate('');
+    setCrewSearchQuery('');
+    setAssignedCrewIds(['960']);
+    setIsScheduleVisitModalOpen(true);
+  };
+
+  const handleScheduleVisitSubmit = async () => {
+    if (!scheduleVisitVenue) {
+      alert('Please select a venue for the site visit.');
+      return;
+    }
+    if (!scheduleVisitDate) {
+      alert('Please select a date for the site visit.');
+      return;
+    }
+
+    setIsSubmittingSiteVisit(true);
+    try {
+      const allCrewAvailable = [...defaultCrewList];
+      allDbContacts.forEach(c => {
+        if (!allCrewAvailable.some(existing => existing.id === c.id)) {
+          allCrewAvailable.push(c);
+        }
+      });
+
+      const assignedNames = allCrewAvailable
+        .filter(c => assignedCrewIds.includes(c.id))
+        .map(c => c.name)
+        .join(', ');
+
+      const notes = assignedNames ? `Assigned Crew: ${assignedNames}` : 'Site visit scheduled via UI modal';
+
+      await createSiteVisit({
+        venue_id: parseInt(scheduleVisitVenue.id, 10),
+        scheduled_date_time: scheduleVisitDate,
+        notes: notes,
+        status: 'scheduled'
+      });
+
+      setIsScheduleVisitModalOpen(false);
+      loadSiteVisits();
+      alert(`Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!`);
+    } catch (err: any) {
+      alert(`Error scheduling site visit: ${err.message || err}`);
+    } finally {
+      setIsSubmittingSiteVisit(false);
+    }
+  };
 
   // Mobile Chat sub-tab toggle (Chat vs Active Schedule)
   const [mobileChatSubTab, setMobileChatSubTab] = useState<'chat' | 'visits'>('chat');
@@ -964,9 +1079,9 @@ function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('add_booking')}
-            className={`sidebar-btn ${activeTab === 'add_booking' ? 'active' : ''}`}
-            title="Book Site Visit (Venue in DB)"
+            onClick={() => openScheduleVisitModal(null)}
+            className="sidebar-btn"
+            title="Schedule Site Visit"
           >
             <CalendarClock size={20} />
           </button>
@@ -1532,8 +1647,7 @@ function App() {
                               className="btn-card-plan"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setBookingVenueId(venue.id);
-                                setActiveTab('add_booking');
+                                openScheduleVisitModal(venue);
                               }}
                             >
                               <Calendar size={12} />
@@ -1894,10 +2008,7 @@ function App() {
                               <button 
                                 className="btn-add-venue"
                                 style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}
-                                onClick={() => {
-                                  setBookingVenueId(selectedVenue.id);
-                                  setActiveTab('add_booking');
-                                }}
+                                onClick={() => openScheduleVisitModal(selectedVenue)}
                               >
                                 <CalendarClock size={14} />
                                 <span>Schedule Visit</span>
@@ -2060,13 +2171,9 @@ function App() {
                         )}
                         <button 
                           className="btn-schedule-site-visit"
-                          onClick={() => {
-                            setBookingVenueId(selectedVenue.id);
-                            setActiveTab('add_booking');
-                          }}
+                          onClick={() => openScheduleVisitModal(selectedVenue)}
                         >
                           Schedule Site Visit
-
                         </button>
                       </div>
 
@@ -4042,6 +4149,195 @@ function App() {
                 {isSubmittingContact ? 'Saving to DB...' : 'Save Contact to DB'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Site Visit Modal */}
+      {isScheduleVisitModalOpen && (
+        <div className="schedule-modal-overlay" onClick={() => setIsScheduleVisitModalOpen(false)}>
+          <div className="schedule-modal-container" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Header */}
+            <div className="schedule-modal-header">
+              <h3 className="schedule-modal-title">Schedule Site Visit</h3>
+              <button 
+                className="schedule-modal-close-btn"
+                onClick={() => setIsScheduleVisitModalOpen(false)}
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="schedule-modal-body">
+              {/* Venue Details Box */}
+              {scheduleVisitVenue ? (
+                <div className="schedule-venue-card">
+                  <div className="schedule-venue-card-label">Venue Details</div>
+                  <div className="schedule-venue-card-title">{scheduleVisitVenue.name}</div>
+                  <div className="schedule-venue-card-location">
+                    <MapPin size={15} style={{ color: '#666', flexShrink: 0 }} />
+                    <span>
+                      {[
+                        scheduleVisitVenue.address_one,
+                        scheduleVisitVenue.suburb,
+                        scheduleVisitVenue.city || 'Harare',
+                        'ZW'
+                      ].filter(Boolean).join(', ')}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="schedule-form-group">
+                  <label className="schedule-form-label">Select Venue</label>
+                  <select
+                    className="schedule-date-input"
+                    value={scheduleVisitVenue?.id || ''}
+                    onChange={(e) => {
+                      const found = venues.find(v => v.id === e.target.value);
+                      setScheduleVisitVenue(found || null);
+                    }}
+                  >
+                    <option value="">Select a venue...</option>
+                    {venues.map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Select Date Section */}
+              <div className="schedule-form-group">
+                <label className="schedule-form-label">Select Date</label>
+                <div className="schedule-date-input-wrapper">
+                  <input 
+                    type="date"
+                    className="schedule-date-input"
+                    value={scheduleVisitDate}
+                    onChange={(e) => setScheduleVisitDate(e.target.value)}
+                    placeholder="mm/dd/yyyy"
+                  />
+                  <Calendar size={18} className="schedule-date-icon" />
+                </div>
+              </div>
+
+              {/* Select Crew Members Section */}
+              <div className="schedule-form-group">
+                <label className="schedule-form-label">Select Crew Members</label>
+                <div className="schedule-search-wrapper">
+                  <Search size={18} className="schedule-search-icon" />
+                  <input 
+                    type="text"
+                    className="schedule-search-input"
+                    placeholder="Search crew member..."
+                    value={crewSearchQuery}
+                    onChange={(e) => setCrewSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="schedule-search-subtext">
+                  Type at least 3 characters to search
+                </div>
+
+                {/* Crew Member Cards Grid */}
+                <div className="schedule-crew-grid">
+                  {(() => {
+                    const combined = [...defaultCrewList];
+                    allDbContacts.forEach(contact => {
+                      if (!combined.some(c => c.id === contact.id || c.name.toLowerCase() === contact.name.toLowerCase())) {
+                        combined.push(contact);
+                      }
+                    });
+
+                    let filtered = combined;
+                    if (crewSearchQuery.trim()) {
+                      const q = crewSearchQuery.toLowerCase();
+                      filtered = combined.filter(c => 
+                        c.name.toLowerCase().includes(q) || 
+                        (c.email && c.email.toLowerCase().includes(q)) || 
+                        (c.phone && c.phone.includes(q)) ||
+                        (c.role && c.role.toLowerCase().includes(q))
+                      );
+                    }
+
+                    return filtered.map((member) => {
+                      const isAssigned = assignedCrewIds.includes(member.id);
+                      return (
+                        <div key={member.id} className="schedule-crew-card">
+                          {member.contact_image ? (
+                            <img src={member.contact_image} alt={member.name} className="schedule-crew-avatar" />
+                          ) : (
+                            <div className="schedule-crew-avatar">
+                              {getInitials(member.name)}
+                            </div>
+                          )}
+
+                          <div className="schedule-crew-name">{member.name}</div>
+
+                          <div className="schedule-crew-stars">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star key={s} size={13} fill="#fbbf24" stroke="#fbbf24" />
+                            ))}
+                          </div>
+
+                          <div className="schedule-crew-badge">Available</div>
+
+                          <div className="schedule-crew-actions">
+                            <button 
+                              className="schedule-crew-icon-btn" 
+                              title="Call" 
+                              onClick={() => member.phone && window.open(`tel:${member.phone}`)}
+                            >
+                              <Phone size={15} />
+                            </button>
+                            <button 
+                              className="schedule-crew-icon-btn" 
+                              title="Email" 
+                              onClick={() => member.email && window.open(`mailto:${member.email}`)}
+                            >
+                              <Mail size={15} />
+                            </button>
+                          </div>
+
+                          <button 
+                            className={`schedule-crew-assign-btn ${isAssigned ? 'assigned' : ''}`}
+                            onClick={() => {
+                              if (isAssigned) {
+                                setAssignedCrewIds(assignedCrewIds.filter(id => id !== member.id));
+                              } else {
+                                setAssignedCrewIds([...assignedCrewIds, member.id]);
+                              }
+                            }}
+                          >
+                            {isAssigned ? 'ASSIGNED' : 'ASSIGN'}
+                          </button>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="schedule-modal-footer">
+              <button 
+                className="schedule-modal-cancel-btn"
+                onClick={() => setIsScheduleVisitModalOpen(false)}
+              >
+                CANCEL
+              </button>
+              <button 
+                className="schedule-modal-submit-btn"
+                disabled={!scheduleVisitDate || isSubmittingSiteVisit}
+                onClick={handleScheduleVisitSubmit}
+              >
+                {isSubmittingSiteVisit ? 'SCHEDULING...' : 'SCHEDULE SITE VISIT'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

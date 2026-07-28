@@ -310,7 +310,7 @@ def get_venue_documents(venue_id: int):
 def get_venue_bookings(venue_id: int):
     try:
         query = """
-            SELECT id, site_visit_date, status, notes, created_at
+            SELECT id, scheduled_date_time, status, notes, created_at
             FROM venue_sitevisit
             WHERE venue_id = %s
             ORDER BY created_at DESC;
@@ -320,10 +320,10 @@ def get_venue_bookings(venue_id: int):
         for row in rows:
             bookings.append({
                 "id": str(row[0]),
-                "site_visit_date": str(row[1]) if row[1] else None,
+                "site_visit_date": row[1].isoformat() if hasattr(row[1], 'isoformat') and row[1] else (str(row[1]) if row[1] else None),
                 "status": row[2],
                 "notes": row[3],
-                "created_at": str(row[4]) if row[4] else None
+                "created_at": row[4].isoformat() if hasattr(row[4], 'isoformat') and row[4] else (str(row[4]) if row[4] else None)
             })
         return bookings
     except Exception as e:
