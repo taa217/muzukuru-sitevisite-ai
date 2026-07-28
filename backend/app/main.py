@@ -433,19 +433,31 @@ class VenueCreate(BaseModel):
     contacts: List[ContactCreate] = []
     layouts: List[LayoutCreate] = []
 
+class CrewMemberPayload(BaseModel):
+    id: str | None = None
+    name: str
+    phone: str | None = None
+    role: str | None = None
+
 class SiteVisitCreate(BaseModel):
     venue_id: int
     scheduled_date_time: str | None = None
     notes: str | None = None
     status: str = "scheduled"
     contact_id: int | None = None
+    assigned_crew: List[CrewMemberPayload] = []
 
-async def auto_trigger_booking_coordination(booking_id: int, venue_id: int, contact_id: int | None = None):
+async def auto_trigger_booking_coordination(
+    booking_id: int,
+    venue_id: int,
+    contact_id: int | None = None,
+    assigned_crew: List[CrewMemberPayload] | None = None
+):
     """
     Background task triggered when a new booking (site visit) is created for a venue in DB.
     Waits 5 seconds, then queries the AI agent to inspect the venue and booking details in DB,
-    notifies crew members about the booking, and contacts the venue coordinator
-    via WhatsApp to request any missing database details (power backup, wifi, capacity, etc.).
+    notifies assigned crew members (or falls back to static crew) about the booking, and contacts
+    the venue coordinator via WhatsApp to request any missing database details (power backup, wifi, capacity, etc.).
     """
     logger.info(f"Booking coordination task triggered for booking ID: {booking_id}, venue ID: {venue_id}, contact ID: {contact_id}. Waiting 5 seconds...")
     await asyncio.sleep(5)
@@ -456,6 +468,27 @@ async def auto_trigger_booking_coordination(booking_id: int, venue_id: int, cont
             return
             
         agent = get_agent_graph()
+        
+        # Build assigned crew contact list or fallback to static crew members
+        crew_details = []
+        if assigned_crew:
+            for member in assigned_crew:
+                m_name = member.name if hasattr(member, 'name') else str(member.get("name", ""))
+                m_phone = member.phone if hasattr(member, 'phone') else str(member.get("phone", "") or "")
+                m_role = member.role if hasattr(member, 'role') else str(member.get("role", "") or "")
+                if m_name and m_phone:
+                    crew_details.append(f"{m_name}: {m_phone}")
+                    # Dynamically register phone in CONTACTS map if unknown
+                    clean_p = m_phone.strip()
+                    if clean_p and clean_p not in CONTACTS:
+                        CONTACTS[clean_p] = {"name": m_name, "role": m_role or "Crew member", "is_crew": True}
+
+        if crew_details:
+            crew_info_str = ", ".join(crew_details)
+            logger.info(f"Using assigned crew for booking coordination: {crew_info_str}")
+        else:
+            crew_info_str = "Clyde: +263781646052, Leon: +263771453985, Max: +263718834117"
+            logger.info(f"No specific assigned crew with phone provided; falling back to static crew: {crew_info_str}")
         
         # Resolve dynamic coordinator contact details for the venue from the DB
         coordinator_name = "Mr Muza"
@@ -502,7 +535,7 @@ async def auto_trigger_booking_coordination(booking_id: int, venue_id: int, cont
                 f"Automated trigger: A new booking (site visit ID: {booking_id}) has been created for venue ID {venue_id}.\n"
                 "Please perform the following coordination tasks:\n"
                 f"1. Use `run_sql_query_tool` to inspect both `venue_sitevisit` (for site visit ID {booking_id}) and `venue_venue` (for venue ID {venue_id}) to gather venue and booking details.\n"
-                f"2. Inform the crew (Clyde: +263781646052, Leon: +263771453985, Max: +263718834117) using `send_whatsapp_message_tool` about the newly booked site visit. Use a friendly, buddy-like, informal tone. Tell them the venue name, booking schedule/notes, and that you are now reaching out to the venue coordinator {coordinator_name} ({coordinator_phone}) to collect any missing venue information.\n"
+                f"2. Inform the assigned crew ({crew_info_str}) using `send_whatsapp_message_tool` about the newly booked site visit. Use a friendly, buddy-like, informal tone. Tell them the venue name, booking schedule/notes, and that you are now reaching out to the venue coordinator {coordinator_name} ({coordinator_phone}) to collect any missing venue information.\n"
                 f"3. Reach out to the client/venue coordinator {coordinator_name} ({coordinator_phone}) using `send_whatsapp_message_tool` by sending TWO separate, sequential WhatsApp messages to ensure a natural, conversational interaction:\n"
                 "   - Message 1 (Introduction): Send a warm, conversational, and natural greeting. Introduce yourself as Nyasha from Muzukuru, mention that the crew is going to stream at their venue/place soon, and explain that you need to get a few details. Generate this message dynamically and naturally based on context so it feels human, not static or formulaic.\n"
                 "   - Message 2 (Questions): Send a separate follow-up message asking for the 2-3 key missing details (e.g. backup power, Wi-Fi, capacity, PA system) using full, intuitive, everyday conversational questions. Do NOT use dry lists or shorthand database fields.\n"
@@ -646,7 +679,13 @@ def create_site_visit(site_visit: SiteVisitCreate, background_tasks: BackgroundT
                 conn.commit()
                 
                 # Register background booking trigger task
-                background_tasks.add_task(auto_trigger_booking_coordination, inserted_id, site_visit.venue_id, site_visit.contact_id)
+                background_tasks.add_task(
+                    auto_trigger_booking_coordination,
+                    inserted_id,
+                    site_visit.venue_id,
+                    site_visit.contact_id,
+                    site_visit.assigned_crew
+                )
                 
                 return {"status": "success", "id": str(inserted_id)}
         except Exception as e:

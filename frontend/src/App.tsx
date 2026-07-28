@@ -110,7 +110,7 @@ function App() {
   const [scheduleVisitVenue, setScheduleVisitVenue] = useState<Venue | null>(null);
   const [scheduleVisitContacts, setScheduleVisitContacts] = useState<VenueContact[]>([]);
   const [selectedScheduleContactId, setSelectedScheduleContactId] = useState<string>('');
-  const [isLoadingScheduleContacts, setIsLoadingScheduleContacts] = useState<boolean>(false);
+  const [, setIsLoadingScheduleContacts] = useState<boolean>(false);
   const [scheduleVisitDate, setScheduleVisitDate] = useState<string>('');
   const [crewSearchQuery, setCrewSearchQuery] = useState<string>('');
   const [assignedCrewIds, setAssignedCrewIds] = useState<string[]>(['960']);
@@ -233,20 +233,28 @@ function App() {
         }
       });
 
-      const assignedNames = allCrewAvailable
-        .filter(c => assignedCrewIds.includes(c.id))
+      const assignedCrewObjects = allCrewAvailable.filter(c => assignedCrewIds.includes(c.id));
+      const assignedNames = assignedCrewObjects
         .map(c => c.name)
         .join(', ');
 
       const notes = assignedNames ? `Assigned Crew: ${assignedNames}` : 'Site visit scheduled via UI modal';
       const contactIdToPass = activeScheduleContact ? parseInt(String(activeScheduleContact.id), 10) : null;
 
+      const assignedCrewPayload = assignedCrewObjects.map(c => ({
+        id: String(c.id),
+        name: c.name,
+        phone: c.phone || null,
+        role: c.role || null
+      }));
+
       await createSiteVisit({
         venue_id: parseInt(scheduleVisitVenue.id, 10),
         scheduled_date_time: scheduleVisitDate,
         notes: notes,
         status: 'scheduled',
-        contact_id: contactIdToPass
+        contact_id: contactIdToPass,
+        assigned_crew: assignedCrewPayload
       });
 
       setIsScheduleVisitModalOpen(false);
@@ -4378,6 +4386,7 @@ function App() {
                           )}
 
                           <div className="schedule-crew-name">{member.name}</div>
+                          {member.role && <div className="schedule-crew-role">{member.role}</div>}
 
                           <div className="schedule-crew-stars">
                             {[1, 2, 3, 4, 5].map((s) => (
@@ -4386,6 +4395,27 @@ function App() {
                           </div>
 
                           <div className="schedule-crew-badge">Available</div>
+
+                          {/* Display Contact Information on Crew Card */}
+                          <div className="schedule-crew-contact-details">
+                            {member.phone ? (
+                              <div className="schedule-crew-phone-text" title={member.phone}>
+                                <Phone size={12} className="schedule-crew-phone-icon" />
+                                <span>{member.phone}</span>
+                              </div>
+                            ) : (
+                              <div className="schedule-crew-phone-text empty">
+                                <Phone size={12} className="schedule-crew-phone-icon" />
+                                <span>No contact phone</span>
+                              </div>
+                            )}
+                            {member.email && (
+                              <div className="schedule-crew-email-text" title={member.email}>
+                                <Mail size={12} className="schedule-crew-email-icon" />
+                                <span>{member.email}</span>
+                              </div>
+                            )}
+                          </div>
 
                           <div className="schedule-crew-actions">
                             <button 

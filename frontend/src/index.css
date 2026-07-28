@@ -3211,6 +3211,14 @@ input:checked + .switch-slider:before {
   margin: 0;
 }
 
+.schedule-crew-role {
+  font-size: 0.73rem;
+  color: #6b7280;
+  font-weight: 500;
+  margin-top: -0.3rem;
+  line-height: 1.25;
+}
+
 .schedule-crew-stars {
   display: flex;
   align-items: center;
@@ -3226,6 +3234,47 @@ input:checked + .switch-slider:before {
   padding: 0.25rem 0.9rem;
   border-radius: 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.schedule-crew-contact-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  margin: 0.2rem 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.schedule-crew-phone-text,
+.schedule-crew-email-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #374151;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-crew-phone-text.empty {
+  color: #9ca3af;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.schedule-crew-phone-icon,
+.schedule-crew-email-icon {
+  color: #6f4227;
+  flex-shrink: 0;
 }
 
 .schedule-crew-actions {

@@ -153,6 +153,12 @@ export interface CreateSiteVisitPayload {
   notes?: string | null;
   status?: string;
   contact_id?: number | null;
+  assigned_crew?: Array<{
+    id?: string | null;
+    name: string;
+    phone?: string | null;
+    role?: string | null;
+  }> | null;
 }
 
 /**
