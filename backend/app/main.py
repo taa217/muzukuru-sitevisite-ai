@@ -847,16 +847,70 @@ async def receive_whatsapp_webhook(request: Request):
         sender_name = info["name"]
         sender_role = info["role"]
         is_crew = info["is_crew"]
-        
+
+        # Fetch venue context if external coordinator
+        venue_ctx_str = ""
+        if not is_crew:
+            try:
+                clean_phone = "".join([c for c in sender if c.isdigit()])
+                local_phone = clean_phone[-9:] if len(clean_phone) >= 9 else clean_phone
+                v_query = """
+                    SELECT v.id, v.name, v.completeness_score, v.capacity, v.has_power, v.power_backup, 
+                           v.internet_service_provider, v.wifi_name, v.has_pa_system, v.pa_system_provider,
+                           v.power_socket_type, v.power_distance_from_livestream_desk, v.router_accessibility,
+                           v.address_one, v.suburb, v.city, v.website
+                    FROM venue_venue v
+                    JOIN venue_venue_contacts vc ON v.id = vc.venue_id
+                    JOIN contact_contact c ON vc.contact_id = c.id
+                    WHERE c.phone LIKE %s OR c.phone LIKE %s
+                    ORDER BY v.created_at DESC
+                    LIMIT 1;
+                """
+                v_cols, v_rows = execute_read_query(v_query, (f"%{local_phone}", f"%{sender.strip()}"))
+                if v_rows:
+                    vr = v_rows[0]
+                    v_id, v_name, v_score, v_cap, v_pow, v_pow_back, v_isp, v_wifi, v_pa, v_pa_prov, v_sock, v_pow_dist, v_rtr, v_addr, v_sub, v_city, v_web = vr
+                    
+                    filled_fields = []
+                    missing_fields = []
+                    
+                    if v_cap: filled_fields.append(f"capacity: {v_cap}") 
+                    else: missing_fields.append("capacity (Tier 1)")
+                    
+                    if v_pow or v_pow_back: filled_fields.append(f"power_backup: {v_pow_back or 'Yes'}") 
+                    else: missing_fields.append("has_power/power_backup (Tier 1)")
+                    
+                    if v_isp or v_wifi: filled_fields.append(f"wifi/isp: {v_isp or v_wifi}") 
+                    else: missing_fields.append("internet_service_provider/wifi_name (Tier 1)")
+                    
+                    if v_pa: filled_fields.append(f"pa_system: {v_pa_prov or 'Yes'}") 
+                    else: missing_fields.append("has_pa_system/pa_system_provider (Tier 2)")
+                    
+                    if v_sock or v_pow_dist: filled_fields.append("power socket/dist info recorded") 
+                    else: missing_fields.append("power_socket_type/power_distance (Tier 2)")
+                    
+                    if v_addr: filled_fields.append(f"address: {v_addr}, {v_sub or ''}") 
+                    else: missing_fields.append("address_one/suburb/city (Tier 3)")
+                    
+                    venue_ctx_str = (
+                        f"\nVENUE CONTEXT & MISSING FIELD TRACKER:\n"
+                        f"- Target Venue: '{v_name}' (ID: {v_id}, DB Score: {v_score}%).\n"
+                        f"- Filled Fields: {', '.join(filled_fields) if filled_fields else 'None'}.\n"
+                        f"- Missing Fields: {', '.join(missing_fields) if missing_fields else 'None (All fields complete!)'}.\n"
+                        f"- Action Required: Process any answers in the user's message, update `venue_venue` DB via SQL, and if missing fields remain, warmly acknowledge their response and ask the next missing question (max 1-2 questions at a time)."
+                    )
+            except Exception as v_err:
+                logger.warning(f"Failed to fetch venue context for coordinator {sender}: {v_err}")
+
         # 3. Convert history to LangChain messages format, starting with a SystemMessage context
         langchain_messages = [
             SystemMessage(
                 content=(
                     f"You are currently conversing via WhatsApp with {sender_name} at phone number {sender} (Role: {sender_role}).\n"
                     f"Their relation to the company: {'Crew/Staff Member (internal)' if is_crew else 'Client/Venue Coordinator (external)'}.\n"
-                    f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, and formal'} tone with them.\n"
+                    f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, warm, and conversational'} tone with them.\n"
                     + (
-                        "Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-3 questions at a time so they are never overwhelmed."
+                        f"Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-2 questions at a time so they are never overwhelmed.{venue_ctx_str}"
                         if not is_crew else ""
                     )
                 )
