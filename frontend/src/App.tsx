@@ -210,7 +210,7 @@ function App() {
 
       setIsScheduleVisitModalOpen(false);
       loadSiteVisits();
-      alert(`Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!`);
+      alert(`Site visit for "${scheduleVisitVenue.name}" has been successfully scheduled!\n\nMuzukuru AI (Nyasha) will automatically contact the venue coordinator via WhatsApp to confirm the site visit details.`);
     } catch (err: any) {
       alert(`Error scheduling site visit: ${err.message || err}`);
     } finally {
@@ -4194,7 +4194,7 @@ function App() {
                   <label className="schedule-form-label">Select Venue</label>
                   <select
                     className="schedule-date-input"
-                    value={scheduleVisitVenue?.id || ''}
+                    value=""
                     onChange={(e) => {
                       const found = venues.find(v => v.id === e.target.value);
                       setScheduleVisitVenue(found || null);
@@ -4207,6 +4207,22 @@ function App() {
                   </select>
                 </div>
               )}
+
+              {/* AI Agent Automated Outreach Notice */}
+              <div className="schedule-agent-notice">
+                <div className="schedule-agent-notice-icon">
+                  <Bot size={18} />
+                </div>
+                <div className="schedule-agent-notice-content">
+                  <div className="schedule-agent-notice-title">
+                    <span>Automated Coordinator Outreach</span>
+                    <span className="schedule-agent-notice-tag">WhatsApp Agent</span>
+                  </div>
+                  <div className="schedule-agent-notice-text">
+                    Upon scheduling, Muzukuru AI Assistant (Nyasha) will automatically contact the venue coordinator via WhatsApp to confirm availability, access instructions, and site details.
+                  </div>
+                </div>
+              </div>
 
               {/* Select Date Section */}
               <div className="schedule-form-group">

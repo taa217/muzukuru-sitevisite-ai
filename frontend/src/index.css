@@ -3329,5 +3329,63 @@ input:checked + .switch-slider:before {
   cursor: not-allowed;
 }
 
+/* AI Agent Automated Outreach Notice inside Schedule Modal */
+.schedule-agent-notice {
+  background: linear-gradient(135deg, rgba(124, 82, 55, 0.05), rgba(46, 125, 50, 0.06));
+  border: 1px solid rgba(124, 82, 55, 0.18);
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.schedule-agent-notice-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #7c5237;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(124, 82, 55, 0.25);
+}
+
+.schedule-agent-notice-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.schedule-agent-notice-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2c2c2c;
+}
+
+.schedule-agent-notice-tag {
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 12px;
+  border: 1px solid rgba(46, 125, 50, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.schedule-agent-notice-text {
+  font-size: 0.8rem;
+  color: #555555;
+  line-height: 1.35;
+}
+
+
 
 
