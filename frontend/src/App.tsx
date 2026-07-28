@@ -162,7 +162,7 @@ function App() {
       phone: '+263781646052',
       role: 'Crew Member / Live Producer',
       contact_type: 'individual',
-      contact_image: '/clyde_tadiwa.png'
+      contact_image: null
     },
     {
       id: 'leon',
@@ -173,7 +173,7 @@ function App() {
       phone: '+263771453985',
       role: 'Crew Leader / CEO',
       contact_type: 'individual',
-      contact_image: '/leon.png'
+      contact_image: null
     },
     {
       id: 'max',
@@ -184,7 +184,7 @@ function App() {
       phone: '+263718834117',
       role: 'Tech Specialist',
       contact_type: 'individual',
-      contact_image: '/max.png'
+      contact_image: null
     },
     {
       id: '961',
@@ -4405,13 +4405,9 @@ function App() {
                       <div className="schedule-assigned-badges-wrapper">
                         {assignedMembers.map(member => (
                           <div key={member.id} className="schedule-assigned-chip">
-                            {member.contact_image ? (
-                              <img src={member.contact_image} alt={member.name} className="schedule-assigned-chip-avatar" />
-                            ) : (
-                              <div className="schedule-assigned-chip-avatar-placeholder">
-                                {getInitials(member.name)}
-                              </div>
-                            )}
+                            <div className="schedule-assigned-chip-avatar-placeholder">
+                              {getInitials(member.name)}
+                            </div>
                             <span className="schedule-assigned-chip-name">{member.name}</span>
                             <button
                               type="button"
@@ -4467,13 +4463,9 @@ function App() {
                       const isAssigned = assignedCrewIds.includes(member.id);
                       return (
                         <div key={member.id} className={`schedule-crew-card ${isAssigned ? 'assigned' : ''}`}>
-                          {member.contact_image ? (
-                            <img src={member.contact_image} alt={member.name} className="schedule-crew-avatar" />
-                          ) : (
-                            <div className="schedule-crew-avatar">
-                              {getInitials(member.name)}
-                            </div>
-                          )}
+                          <div className="schedule-crew-avatar">
+                            {getInitials(member.name)}
+                          </div>
 
                           <div className="schedule-crew-name">{member.name}</div>
                           {member.role && <div className="schedule-crew-role">{member.role}</div>}

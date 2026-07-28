@@ -3196,12 +3196,14 @@ input:checked + .switch-slider:before {
   object-fit: cover;
   border: 2px solid #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  background: #e2e8f0;
+  background: linear-gradient(135deg, #7c5237, #5c3826);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: #5c3826;
+  color: #ffffff;
+  letter-spacing: 0.5px;
 }
 
 .schedule-crew-name {
