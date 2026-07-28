@@ -137,7 +137,11 @@ def get_venues():
             SELECT id, name, address_one, address_two, suburb, city, capacity,
                    has_power, power_type, power_backup, internet_service_provider,
                    completeness_score, is_private_residence, venue_type, media_urls,
-                   has_pa_system, pa_system_provider, wifi_name, notes, floor_plan_file_urls
+                   has_pa_system, pa_system_provider, wifi_name, notes, floor_plan_file_urls,
+                   power_outage_rate, power_socket_type, power_distance_from_livestream_desk,
+                   internet_upload_speed, router_accessibility, router_distance_from_livestream,
+                   pa_system_distance_from_livestream, other_pa_system_providers, pa_system_contact_phone,
+                   pa_system_contact_email, website, facebook, instagram
             FROM venue_venue
             ORDER BY completeness_score DESC, name ASC;
         """
@@ -164,7 +168,20 @@ def get_venues():
                 "pa_system_provider": row[16],
                 "wifi_name": row[17],
                 "notes": row[18],
-                "floor_plan_file_urls": row[19]
+                "floor_plan_file_urls": row[19],
+                "power_outage_rate": row[20],
+                "power_socket_type": row[21],
+                "power_distance_from_livestream_desk": row[22],
+                "internet_upload_speed": row[23],
+                "router_accessibility": row[24],
+                "router_distance_from_livestream": row[25],
+                "pa_system_distance_from_livestream": row[26],
+                "other_pa_system_providers": row[27],
+                "pa_system_contact_phone": row[28],
+                "pa_system_contact_email": row[29],
+                "website": row[30],
+                "facebook": row[31],
+                "instagram": row[32]
             })
         return venues
     except Exception as e:
@@ -391,15 +408,28 @@ class VenueCreate(BaseModel):
     venue_type: str | None = None
     has_power: bool = False
     power_type: str | None = None
+    power_outage_rate: str | None = None
+    power_socket_type: str | None = None
     power_backup: str | None = None
+    power_distance_from_livestream_desk: str | None = None
     internet_service_provider: str | None = None
+    wifi_name: str | None = None
+    wifi_password: str | None = None
+    internet_upload_speed: float | str | None = None
+    router_accessibility: str | bool | None = None
+    router_distance_from_livestream: str | None = None
+    has_pa_system: bool = False
+    pa_system_provider: str | None = None
+    pa_system_distance_from_livestream: str | None = None
+    other_pa_system_providers: str | None = None
+    pa_system_contact_phone: str | None = None
+    pa_system_contact_email: str | None = None
+    website: str | None = None
+    facebook: str | None = None
+    instagram: str | None = None
     completeness_score: int = 30
     is_private_residence: bool = False
     notes: str | None = None
-    wifi_name: str | None = None
-    wifi_password: str | None = None
-    has_pa_system: bool = False
-    pa_system_provider: str | None = None
     contacts: List[ContactCreate] = []
     layouts: List[LayoutCreate] = []
 
@@ -492,18 +522,33 @@ async def auto_trigger_booking_coordination(booking_id: int, venue_id: int, cont
 @app.post("/api/venues")
 def create_venue(venue: VenueCreate):
     try:
+        router_acc_str = str(venue.router_accessibility) if venue.router_accessibility is not None else None
+        upload_speed_val = float(venue.internet_upload_speed) if venue.internet_upload_speed and str(venue.internet_upload_speed).replace('.', '', 1).isdigit() else None
+
         query = """
             INSERT INTO venue_venue (
                 name, address_one, address_two, suburb, city, capacity,
                 has_power, power_type, power_backup, internet_service_provider,
                 completeness_score, is_private_residence, notes, time_zone,
                 wifi_name, wifi_password, has_pa_system, pa_system_provider,
-                venue_type, created_at, updated_at
+                venue_type, power_outage_rate, power_socket_type,
+                power_distance_from_livestream_desk, internet_upload_speed,
+                router_accessibility, router_distance_from_livestream,
+                pa_system_distance_from_livestream, other_pa_system_providers,
+                pa_system_contact_phone, pa_system_contact_email,
+                website, facebook, instagram,
+                created_at, updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, 'Africa/Harare',
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s,
+                %s, %s, %s,
                 NOW(), NOW()
             ) RETURNING id;
         """
@@ -512,7 +557,12 @@ def create_venue(venue: VenueCreate):
             venue.has_power, venue.power_type, venue.power_backup, venue.internet_service_provider,
             venue.completeness_score, venue.is_private_residence, venue.notes,
             venue.wifi_name, venue.wifi_password, venue.has_pa_system, venue.pa_system_provider,
-            venue.venue_type
+            venue.venue_type, venue.power_outage_rate, venue.power_socket_type,
+            venue.power_distance_from_livestream_desk, upload_speed_val,
+            router_acc_str, venue.router_distance_from_livestream,
+            venue.pa_system_distance_from_livestream, venue.other_pa_system_providers,
+            venue.pa_system_contact_phone, venue.pa_system_contact_email,
+            venue.website, venue.facebook, venue.instagram
         )
         
         conn = get_db_connection()

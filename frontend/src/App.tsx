@@ -33,7 +33,10 @@ import {
   MessageSquare,
   Phone,
   Mail,
-  ChevronRight
+  ChevronRight,
+  Upload,
+  Eye,
+  Volume2
 } from 'lucide-react';
 import {
   chatWithAgent,
@@ -137,14 +140,27 @@ function App() {
     suburb: '',
     city: 'Harare',
     notes: '',
-    has_power: false,
-    power_type: 'zesa',
+    website: '',
+    facebook: '',
+    instagram: '',
+    has_power: true,
+    power_type: '',
+    power_outage_rate: '',
     power_backup: '',
+    power_socket_type: 'Square',
+    power_distance_from_livestream_desk: '0',
     internet_service_provider: '',
     wifi_name: '',
     wifi_password: '',
-    has_pa_system: false,
+    internet_upload_speed: '',
+    router_accessibility: true,
+    router_distance_from_livestream: '0',
+    has_pa_system: true,
+    pa_system_distance_from_livestream: '0',
     pa_system_provider: '',
+    other_pa_system_providers: '',
+    pa_system_contact_phone: '',
+    pa_system_contact_email: '',
     is_private_residence: false,
     contacts: [
       { contact_id: '', mode: 'search' as 'search' | 'selected' | 'manual', searchQuery: '', isOpen: false, first_name: '', last_name: '', email: '', phone: '', role: 'Venue Coordinator' }
@@ -360,14 +376,27 @@ function App() {
         suburb: newVenue.suburb.trim() || null,
         city: newVenue.city || null,
         notes: newVenue.notes.trim() || null,
+        website: newVenue.website.trim() || null,
+        facebook: newVenue.facebook.trim() || null,
+        instagram: newVenue.instagram.trim() || null,
         has_power: newVenue.has_power,
         power_type: newVenue.power_type || null,
+        power_outage_rate: newVenue.power_outage_rate || null,
+        power_socket_type: newVenue.power_socket_type || null,
         power_backup: newVenue.power_backup || null,
+        power_distance_from_livestream_desk: newVenue.power_distance_from_livestream_desk || null,
         internet_service_provider: newVenue.internet_service_provider || null,
         wifi_name: newVenue.wifi_name.trim() || null,
         wifi_password: newVenue.wifi_password.trim() || null,
+        internet_upload_speed: newVenue.internet_upload_speed ? parseFloat(newVenue.internet_upload_speed) : null,
+        router_accessibility: newVenue.router_accessibility ? 'true' : 'false',
+        router_distance_from_livestream: newVenue.router_distance_from_livestream || null,
         has_pa_system: newVenue.has_pa_system,
         pa_system_provider: newVenue.pa_system_provider.trim() || null,
+        pa_system_distance_from_livestream: newVenue.pa_system_distance_from_livestream || null,
+        other_pa_system_providers: newVenue.other_pa_system_providers.trim() || null,
+        pa_system_contact_phone: newVenue.pa_system_contact_phone.trim() || null,
+        pa_system_contact_email: newVenue.pa_system_contact_email.trim() || null,
         is_private_residence: newVenue.is_private_residence,
         completeness_score: completeness,
         contacts: validContacts,
@@ -386,14 +415,27 @@ function App() {
         suburb: '',
         city: 'Harare',
         notes: '',
-        has_power: false,
-        power_type: 'zesa',
+        website: '',
+        facebook: '',
+        instagram: '',
+        has_power: true,
+        power_type: '',
+        power_outage_rate: '',
         power_backup: '',
+        power_socket_type: 'Square',
+        power_distance_from_livestream_desk: '0',
         internet_service_provider: '',
         wifi_name: '',
         wifi_password: '',
-        has_pa_system: false,
+        internet_upload_speed: '',
+        router_accessibility: true,
+        router_distance_from_livestream: '0',
+        has_pa_system: true,
+        pa_system_distance_from_livestream: '0',
         pa_system_provider: '',
+        other_pa_system_providers: '',
+        pa_system_contact_phone: '',
+        pa_system_contact_email: '',
         is_private_residence: false,
         contacts: [
           { contact_id: '', mode: 'search', searchQuery: '', isOpen: false, first_name: '', last_name: '', email: '', phone: '', role: 'Venue Coordinator' }
@@ -2082,7 +2124,7 @@ function App() {
                 <button className="header-icon-btn" disabled><Moon size={16} /></button>
                 <div className="profile-capsule">
                   <div className="profile-avatar-circle">C</div>
-                  <span>clyde@muzukuru.com</span>
+                  <span>Clyde Tadiwa</span>
                 </div>
               </div>
             </header>
@@ -2093,195 +2135,170 @@ function App() {
               <div className="add-venue-form-col">
                 {/* Stepper Card */}
                 <div className="form-wizard-card" style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-light)', overflow: 'hidden', boxShadow: '0 4px 15px rgba(92,62,48,0.08)' }}>
+                  
                   {/* Stepper Header Banner */}
-                  <div className="stepper-header-banner" style={{
-                    background: 'linear-gradient(135deg, #5c3e30, #8c6239)',
-                    padding: '1.5rem',
-                    position: 'relative'
-                  }}>
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                      <button
-                        onClick={handleSaveVenue}
-                        disabled={isSubmittingVenue}
-                        className="btn-add-venue"
-                        style={{ background: '#ffffff', color: 'var(--text-main)', border: '1px solid var(--border-light)' }}
-                      >
-                        {isSubmittingVenue ? 'Saving...' : 'Save Venue'}
-                      </button>
-                      
-                      <button
-                        onClick={() => setActiveTab('venues')}
-                        style={{
-                          background: 'transparent',
-                          color: '#faf8f5',
-                          border: '1px solid rgba(250, 248, 245, 0.3)',
-                          padding: '0.4rem 0.8rem',
-                          borderRadius: '8px',
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-
-                    {/* Step Indicators */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
-                      {/* Connecting Line */}
-                      <div style={{ position: 'absolute', top: '15px', left: '5%', right: '5%', height: '2px', background: 'rgba(250, 248, 245, 0.2)', zIndex: -1 }}></div>
-                      
-                      {[
-                        { step: 1, label: 'Venue Essentials' },
-                        { step: 2, label: 'Power' },
-                        { step: 3, label: 'Internet & Network' },
-                        { step: 4, label: 'PA Systems' },
-                        { step: 5, label: 'Rooms' },
-                        { step: 6, label: 'Contacts' }
-                      ].map((item) => (
-                        <div
-                          key={item.step}
-                          onClick={() => setFormStep(item.step)}
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            flex: 1,
-                            cursor: 'pointer',
-                            opacity: formStep === item.step ? 1 : 0.6
-                          }}
+                  <div className="wizard-pattern-banner" style={{ padding: '1.5rem 1.75rem' }}>
+                    <div className="wizard-banner-content">
+                      {/* Top Action Link: Save Venue */}
+                      <div className="stepper-top-action">
+                        <button
+                          type="button"
+                          onClick={handleSaveVenue}
+                          disabled={isSubmittingVenue}
+                          className="btn-save-venue-link"
                         >
-                          <div style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: formStep === item.step ? 'var(--color-secondary)' : '#faf8f5',
-                            color: formStep === item.step ? '#ffffff' : 'var(--text-main)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 700,
-                            fontSize: '0.85rem',
-                            border: '2px solid rgba(250, 248, 245, 0.8)',
-                            boxShadow: formStep === item.step ? '0 0 10px rgba(255,255,255,0.4)' : 'none',
-                            transition: 'all 0.2s ease'
-                          }}>
-                            {item.step}
-                          </div>
-                          <span className="stepper-step-label" style={{ fontSize: '0.65rem', color: '#faf8f5', marginTop: '0.4rem', fontWeight: 600, textAlign: 'center' }}>
-                            {item.label}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Mobile-only Step Summary Label */}
-                    <div className="mobile-step-indicator-text">
-                      Step {formStep} of 6: {[
-                        'Venue Essentials',
-                        'Power',
-                        'Internet & Network',
-                        'PA Systems',
-                        'Rooms',
-                        'Contacts'
-                      ][formStep - 1]}
+                          {isSubmittingVenue ? 'Saving Venue...' : 'Save Venue'}
+                        </button>
+                      </div>
+
+                      {/* Step Progress Circles */}
+                      <div className="stepper-steps-container">
+                        <div className="stepper-line"></div>
+                        
+                        {[
+                          { step: 1, label: 'Venue Essentials' },
+                          { step: 2, label: 'Power' },
+                          { step: 3, label: 'Internet Details' },
+                          { step: 4, label: 'PA Systems' },
+                          { step: 5, label: 'Rooms' },
+                          { step: 6, label: 'Contacts' }
+                        ].map((item) => {
+                          const isActive = formStep === item.step;
+                          const isCompleted = formStep > item.step;
+                          return (
+                            <div
+                              key={item.step}
+                              onClick={() => setFormStep(item.step)}
+                              className={`stepper-step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+                            >
+                              <div className="stepper-circle">
+                                {item.step}
+                              </div>
+                              <span className="stepper-text-label">
+                                {item.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Form Step Content */}
-                  <div style={{ padding: '2rem' }}>
+                  {/* Form Step Content Body */}
+                  <div style={{ padding: '2rem 2.25rem' }}>
+                    
                     {/* STEP 1: Venue Essentials */}
                     {formStep === 1 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Row 1: Name, Type, Capacity */}
                         <div className="form-grid-3">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Venue Name <span style={{ color: 'red' }}>*</span></label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>
+                              Venue Name <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
                             <input
                               type="text"
                               className="filter-search-input"
-                              placeholder="e.g. Arundel School Chapel"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: formErrors.name ? '1px solid red' : '1px solid var(--border-light)' }}
+                              placeholder="Clyde"
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: formErrors.name ? '1px solid #ef4444' : '1px solid var(--border-light)' }}
                               value={newVenue.name}
-                              onChange={(e) => setNewVenue(prev => ({ ...prev, name: e.target.value }))}
+                              onChange={(e) => {
+                                setNewVenue(prev => ({ ...prev, name: e.target.value }));
+                                if (e.target.value.trim() && formErrors.name) {
+                                  setFormErrors(prev => {
+                                    const updated = { ...prev };
+                                    delete updated.name;
+                                    return updated;
+                                  });
+                                }
+                              }}
                             />
-                            {formErrors.name && <span style={{ color: 'red', fontSize: '0.7rem', fontWeight: 500 }}>{formErrors.name}</span>}
+                            {formErrors.name && (
+                              <span style={{ color: '#ef4444', fontSize: '0.725rem', fontWeight: 500, marginTop: '0.1rem' }}>
+                                {formErrors.name}
+                              </span>
+                            )}
                           </div>
                           
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Venue Type</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Venue Type</label>
                             <select
                               className="header-dropdown"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)', height: '42px' }}
                               value={newVenue.venue_type}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, venue_type: e.target.value }))}
                             >
                               <option value="">Select type...</option>
-                              <option value="church">Church</option>
-                              <option value="hall">Hall</option>
+                              <option value="Church">Church</option>
+                              <option value="Hall">Hall</option>
                               <option value="Funeral Parlour">Funeral Parlour</option>
-                              <option value="tent">Tent</option>
-                              <option value="other">Other</option>
+                              <option value="Tent">Tent</option>
+                              <option value="Hotel">Hotel</option>
+                              <option value="Conference Center">Conference Center</option>
+                              <option value="Private Residence">Private Residence</option>
+                              <option value="Other">Other</option>
                             </select>
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Venue Capacity</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Venue Capacity</label>
                             <input
                               type="text"
                               className="filter-search-input"
                               placeholder="e.g. 250"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
                               value={newVenue.capacity}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, capacity: e.target.value }))}
                             />
                           </div>
                         </div>
 
+                        {/* Row 2: Address One, Address Two, Suburb */}
                         <div className="form-grid-3">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Address One</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Address One</label>
                             <input
                               type="text"
                               className="filter-search-input"
                               placeholder="e.g address one"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
                               value={newVenue.address_one}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, address_one: e.target.value }))}
                             />
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Address Two</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Address Two</label>
                             <input
                               type="text"
                               className="filter-search-input"
                               placeholder="e.g address two"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
                               value={newVenue.address_two}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, address_two: e.target.value }))}
                             />
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Suburb</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Suburb</label>
                             <input
                               type="text"
                               className="filter-search-input"
                               placeholder="e.g Mount Pleasant"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
                               value={newVenue.suburb}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, suburb: e.target.value }))}
                             />
                           </div>
                         </div>
 
-                        <div className="form-grid-1-2">
+                        {/* Row 3: City */}
+                        <div className="form-grid-3">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>City</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>City</label>
                             <select
                               className="header-dropdown"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)', height: '42px' }}
                               value={newVenue.city}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, city: e.target.value }))}
                             >
@@ -2290,124 +2307,310 @@ function App() {
                               <option value="Gweru">Gweru</option>
                               <option value="Mutare">Mutare</option>
                               <option value="Masvingo">Masvingo</option>
+                              <option value="Kwekwe">Kwekwe</option>
+                              <option value="Kadoma">Kadoma</option>
+                              <option value="Victoria Falls">Victoria Falls</option>
                             </select>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', marginTop: '1.5rem' }}>
-                            <label className="filter-checkbox-label">
-                              <input
-                                type="checkbox"
-                                checked={newVenue.is_private_residence}
-                                onChange={(e) => setNewVenue(prev => ({ ...prev, is_private_residence: e.target.checked }))}
-                              />
-                              <span>This venue is a Private Residence</span>
-                            </label>
                           </div>
                         </div>
 
+                        {/* Row 4: Notes */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Notes</label>
+                          <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Notes</label>
                           <textarea
                             placeholder="Any additional notes about the venue..."
-                            rows={4}
-                            style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-light)', fontFamily: 'var(--font-sans)', outline: 'none', fontSize: '0.85rem' }}
+                            rows={3}
+                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)', fontFamily: 'inherit', fontSize: '0.85rem', outline: 'none' }}
                             value={newVenue.notes}
                             onChange={(e) => setNewVenue(prev => ({ ...prev, notes: e.target.value }))}
                           ></textarea>
+                        </div>
+
+                        {/* Sub-section: Social Media & Web */}
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.85rem' }}>
+                            Social Media & Web
+                          </h4>
+                          <div className="form-grid-3">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Website</label>
+                              <input
+                                type="text"
+                                className="filter-search-input"
+                                placeholder="https://www.example.com"
+                                style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
+                                value={newVenue.website}
+                                onChange={(e) => setNewVenue(prev => ({ ...prev, website: e.target.value }))}
+                              />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Facebook</label>
+                              <input
+                                type="text"
+                                className="filter-search-input"
+                                placeholder="https://facebook.com/page"
+                                style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
+                                value={newVenue.facebook}
+                                onChange={(e) => setNewVenue(prev => ({ ...prev, facebook: e.target.value }))}
+                              />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Instagram</label>
+                              <input
+                                type="text"
+                                className="filter-search-input"
+                                placeholder="https://instagram.com/handle"
+                                style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
+                                value={newVenue.instagram}
+                                onChange={(e) => setNewVenue(prev => ({ ...prev, instagram: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Sub-section: Media Upload Dropzones */}
+                        <div className="form-grid-2" style={{ marginTop: '0.5rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dark)' }}>Venue Photos</label>
+                            <div className="upload-dropzone-box">
+                              <div className="upload-icon-circle">
+                                <Upload size={18} />
+                              </div>
+                              <span style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>
+                                Click or drag & drop to upload
+                              </span>
+                              <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+                                Max size: 10 MB
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dark)' }}>Floor Plans</label>
+                            <div className="upload-dropzone-box">
+                              <div className="upload-icon-circle">
+                                <Upload size={18} />
+                              </div>
+                              <span style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>
+                                Click or drag & drop to upload
+                              </span>
+                              <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+                                Max size: 30 MB
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
 
                     {/* STEP 2: Power */}
                     {formStep === 2 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                          <label className="filter-checkbox-label">
-                            <input
-                              type="checkbox"
-                              checked={newVenue.has_power}
-                              onChange={(e) => setNewVenue(prev => ({ ...prev, has_power: e.target.checked }))}
-                            />
-                            <span>Venue has Grid Power active</span>
-                          </label>
-                        </div>
-
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Row 1: Power Type & Power Outage Rate */}
                         <div className="form-grid-2">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Power Connection Type</label>
-                            <input
-                              type="text"
-                              className="filter-search-input"
-                              placeholder="e.g. zesa / grid / single-phase"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Power Type</label>
+                            <select
+                              className="header-dropdown"
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)', height: '42px' }}
                               value={newVenue.power_type}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, power_type: e.target.value }))}
-                            />
+                            >
+                              <option value="">Select type...</option>
+                              <option value="Grid (ZESA)">Grid (ZESA)</option>
+                              <option value="Generator">Generator</option>
+                              <option value="Solar">Solar</option>
+                              <option value="Mixed / Hybrid">Mixed / Hybrid</option>
+                            </select>
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Power Backup Option</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Power Outage Rate</label>
                             <select
                               className="header-dropdown"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
-                              value={newVenue.power_backup}
-                              onChange={(e) => setNewVenue(prev => ({ ...prev, power_backup: e.target.value }))}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)', height: '42px' }}
+                              value={newVenue.power_outage_rate}
+                              onChange={(e) => setNewVenue(prev => ({ ...prev, power_outage_rate: e.target.value }))}
                             >
-                              <option value="">No backup power</option>
-                              <option value="Generator">Generator</option>
-                              <option value="Solar">Solar</option>
-                              <option value="UPS">UPS</option>
+                              <option value="">Select outage rate...</option>
+                              <option value="Low">Low</option>
+                              <option value="Medium">Medium</option>
+                              <option value="High">High</option>
+                              <option value="Frequent">Frequent</option>
                             </select>
+                          </div>
+                        </div>
+
+                        {/* Row 2: Back Up Power */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            Back Up Power <Plus size={14} style={{ cursor: 'pointer' }} />
+                          </label>
+                          <select
+                            className="header-dropdown"
+                            style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)', height: '42px' }}
+                            value={newVenue.power_backup}
+                            onChange={(e) => setNewVenue(prev => ({ ...prev, power_backup: e.target.value }))}
+                          >
+                            <option value="">Select backup power...</option>
+                            <option value="Generator">Generator</option>
+                            <option value="Solar">Solar</option>
+                            <option value="UPS / Battery">UPS / Battery</option>
+                            <option value="None">None</option>
+                          </select>
+                        </div>
+
+                        {/* Row 3: Power Socket Type */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Power Socket Type</label>
+                          <div className="socket-pill-group">
+                            <button
+                              type="button"
+                              className={`socket-pill-btn ${newVenue.power_socket_type === 'Round' ? 'active' : ''}`}
+                              onClick={() => setNewVenue(prev => ({ ...prev, power_socket_type: 'Round' }))}
+                            >
+                              Round
+                            </button>
+                            <button
+                              type="button"
+                              className={`socket-pill-btn ${newVenue.power_socket_type === 'Square' ? 'active' : ''}`}
+                              onClick={() => setNewVenue(prev => ({ ...prev, power_socket_type: 'Square' }))}
+                            >
+                              Square
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Row 4: Distance from Livedesk */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                          <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Distance from Livedesk</label>
+                          <div className="slider-control-row">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              className="distance-range-slider"
+                              value={newVenue.power_distance_from_livestream_desk || '0'}
+                              onChange={(e) => setNewVenue(prev => ({ ...prev, power_distance_from_livestream_desk: e.target.value }))}
+                            />
+                            <div className="meter-unit-box">
+                              {newVenue.power_distance_from_livestream_desk || '0'} m
+                            </div>
                           </div>
                         </div>
                       </div>
                     )}
 
-                    {/* STEP 3: Internet & Network */}
+                    {/* STEP 3: Internet Details */}
                     {formStep === 3 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div className="form-grid-2">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Row 1: ISP, Wifi Name, Password */}
+                        <div className="form-grid-3">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Internet Service Provider (ISP)</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              Internet Service Provider <Plus size={14} style={{ cursor: 'pointer' }} />
+                            </label>
                             <select
                               className="header-dropdown"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-light)', height: '42px' }}
                               value={newVenue.internet_service_provider}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, internet_service_provider: e.target.value }))}
                             >
-                              <option value="">None / No Internet Available</option>
+                              <option value="">Select provider...</option>
                               <option value="Starlink">Starlink</option>
                               <option value="Zol (Liquid Home)">Zol (Liquid Home)</option>
                               <option value="Econet">Econet</option>
                               <option value="TelOne">TelOne</option>
                               <option value="Telco">Telco</option>
+                              <option value="Other">Other</option>
                             </select>
                           </div>
-                        </div>
 
-                        <div className="form-grid-2">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Wifi Network Name (SSID)</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Wifi Name</label>
                             <input
                               type="text"
                               className="filter-search-input"
-                              placeholder="e.g. Venue_Guest_Wifi"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
+                              placeholder="clyde@muzukuru.com"
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
                               value={newVenue.wifi_name}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, wifi_name: e.target.value }))}
                             />
                           </div>
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>Wifi Password</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Password</label>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <input
+                                type="password"
+                                className="filter-search-input"
+                                placeholder="••••••••"
+                                style={{ width: '100%', padding: '0.65rem 2.25rem 0.65rem 0.85rem', borderRadius: '8px' }}
+                                value={newVenue.wifi_password}
+                                onChange={(e) => setNewVenue(prev => ({ ...prev, wifi_password: e.target.value }))}
+                              />
+                              <Eye size={16} style={{ position: 'absolute', right: '10px', color: 'var(--text-muted)', cursor: 'pointer' }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Row 2: Upload Speed */}
+                        <div className="form-grid-3">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Upload Speed</label>
+                            <div className="input-with-suffix-wrapper">
+                              <input
+                                type="text"
+                                className="filter-search-input"
+                                placeholder=""
+                                style={{ width: '100%', padding: '0.65rem 3rem 0.65rem 0.85rem', borderRadius: '8px' }}
+                                value={newVenue.internet_upload_speed}
+                                onChange={(e) => setNewVenue(prev => ({ ...prev, internet_upload_speed: e.target.value }))}
+                              />
+                              <span className="input-suffix-tag">Mbps</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Row 3: Is router accessible Feature Card */}
+                        <div className="feature-toggle-card">
+                          <div className="feature-toggle-left">
+                            <div className="feature-toggle-icon">
+                              <Wifi size={20} />
+                            </div>
+                            <div>
+                              <h5 className="feature-toggle-title">Is router accessible</h5>
+                              <p className="feature-toggle-sub">Whether the router is physically accessible from the livestream desk.</p>
+                            </div>
+                          </div>
+
+                          <label className="custom-switch">
                             <input
-                              type="text"
-                              className="filter-search-input"
-                              placeholder="Password"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
-                              value={newVenue.wifi_password}
-                              onChange={(e) => setNewVenue(prev => ({ ...prev, wifi_password: e.target.value }))}
+                              type="checkbox"
+                              checked={newVenue.router_accessibility}
+                              onChange={(e) => setNewVenue(prev => ({ ...prev, router_accessibility: e.target.checked }))}
                             />
+                            <span className="switch-slider"></span>
+                          </label>
+                        </div>
+
+                        {/* Row 4: Router Distance from Livedesk */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Router Distance from Livedesk</label>
+                          <div className="slider-control-row">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              className="distance-range-slider"
+                              value={newVenue.router_distance_from_livestream || '0'}
+                              onChange={(e) => setNewVenue(prev => ({ ...prev, router_distance_from_livestream: e.target.value }))}
+                            />
+                            <div className="meter-unit-box">
+                              {newVenue.router_distance_from_livestream || '0'} m
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -2415,31 +2618,106 @@ function App() {
 
                     {/* STEP 4: PA Systems */}
                     {formStep === 4 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                          <label className="filter-checkbox-label">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Row 1: Does venue have PA System Feature Card */}
+                        <div className="feature-toggle-card">
+                          <div className="feature-toggle-left">
+                            <div className="feature-toggle-icon">
+                              <Volume2 size={20} />
+                            </div>
+                            <div>
+                              <h5 className="feature-toggle-title">Does venue have PA System?</h5>
+                              <p className="feature-toggle-sub">A PA system helps with audio distribution across the venue.</p>
+                            </div>
+                          </div>
+
+                          <label className="custom-switch">
                             <input
                               type="checkbox"
                               checked={newVenue.has_pa_system}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, has_pa_system: e.target.checked }))}
                             />
-                            <span>Venue has built-in PA System</span>
+                            <span className="switch-slider"></span>
                           </label>
                         </div>
 
-                        {newVenue.has_pa_system && (
+                        {/* Row 2: Distance from Livedesk */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Distance from Livedesk</label>
+                          <div className="slider-control-row">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              className="distance-range-slider"
+                              value={newVenue.pa_system_distance_from_livestream || '0'}
+                              onChange={(e) => setNewVenue(prev => ({ ...prev, pa_system_distance_from_livestream: e.target.value }))}
+                            />
+                            <div className="meter-unit-box">
+                              {newVenue.pa_system_distance_from_livestream || '0'} m
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Row 3: PA System Provider */}
+                        <div className="form-grid-2">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)' }}>PA System Brand / Provider Details</label>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>PA System Provider</label>
                             <input
                               type="text"
                               className="filter-search-input"
-                              placeholder="e.g. Yamaha, JBL, Custom provider"
-                              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px' }}
+                              placeholder="e.g. Sound Systems Ltd"
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
                               value={newVenue.pa_system_provider}
                               onChange={(e) => setNewVenue(prev => ({ ...prev, pa_system_provider: e.target.value }))}
                             />
                           </div>
-                        )}
+                        </div>
+
+                        {/* Row 4: Other P.A System Provider, Phone, Email */}
+                        <div className="form-grid-3">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Other P.A System Provider</label>
+                            <input
+                              type="text"
+                              className="filter-search-input"
+                              placeholder="e.g. Sound Guy Audio Visuals"
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
+                              value={newVenue.other_pa_system_providers}
+                              onChange={(e) => setNewVenue(prev => ({ ...prev, other_pa_system_providers: e.target.value }))}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Phone</label>
+                            <div className="phone-flag-input-group">
+                              <div className="country-flag-prefix">
+                                <span>🇿🇼</span>
+                                <span>+263</span>
+                              </div>
+                              <input
+                                type="text"
+                                className="filter-search-input phone-flag-input"
+                                placeholder=""
+                                style={{ width: '100%', padding: '0.65rem 0.85rem' }}
+                                value={newVenue.pa_system_contact_phone}
+                                onChange={(e) => setNewVenue(prev => ({ ...prev, pa_system_contact_phone: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            <label style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-dark)' }}>Email</label>
+                            <input
+                              type="email"
+                              className="filter-search-input"
+                              placeholder="e.g. provider@example.com"
+                              style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px' }}
+                              value={newVenue.pa_system_contact_email}
+                              onChange={(e) => setNewVenue(prev => ({ ...prev, pa_system_contact_email: e.target.value }))}
+                            />
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -2558,7 +2836,6 @@ function App() {
                         {newVenue.contacts.map((contact, idx) => {
                           const selectedDbContact = allDbContacts.find(c => String(c.id) === String(contact.contact_id));
 
-                          // Filter DB contacts by search query
                           const filteredDbContacts = allDbContacts.filter(c => {
                             if (!contact.searchQuery.trim()) return true;
                             const q = contact.searchQuery.toLowerCase();
@@ -2591,7 +2868,6 @@ function App() {
                                 )}
                               </div>
 
-                              {/* STATE 1: SELECTED CONTACT VIEW */}
                               {(contact.mode === 'selected' || contact.contact_id) && selectedDbContact ? (
                                 <div className="selected-contact-card">
                                   <div className="selected-card-header">
@@ -2625,7 +2901,6 @@ function App() {
                                   </div>
                                 </div>
                               ) : contact.mode === 'manual' ? (
-                                /* STATE 2: MANUAL CREATION FORM */
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '0.6rem 0.85rem', borderRadius: '8px' }}>
                                     <span style={{ fontSize: '0.775rem', color: '#1e40af', fontWeight: 600 }}>
@@ -2747,7 +3022,6 @@ function App() {
                                   </div>
                                 </div>
                               ) : (
-                                /* STATE 3: UNIFIED SEARCH COMBOBOX */
                                 <div className="combobox-container">
                                   <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.4rem', display: 'block' }}>
                                     Search or Add Contact
@@ -2794,7 +3068,6 @@ function App() {
                                     )}
                                   </div>
 
-                                  {/* FLOATING COMBOBOX DROPDOWN */}
                                   {contact.isOpen && (
                                     <div className="combobox-dropdown">
                                       {filteredDbContacts.length > 0 ? (
@@ -2835,7 +3108,6 @@ function App() {
                                         </div>
                                       )}
 
-                                      {/* Create New Contact Action */}
                                       <div
                                         className="combobox-create-option"
                                         onClick={() => {
@@ -2861,39 +3133,60 @@ function App() {
                       </div>
                     )}
 
-                    {/* Navigation Buttons */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem' }}>
-                      <button
-                        onClick={() => setFormStep(prev => Math.max(1, prev - 1))}
-                        disabled={formStep === 1}
-                        style={{
-                          background: 'transparent',
-                          color: formStep === 1 ? 'rgba(0,0,0,0.2)' : 'var(--text-main)',
-                          border: '1px solid var(--border-light)',
-                          padding: '0.5rem 1rem',
-                          borderRadius: '8px',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          cursor: formStep === 1 ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        Back
-                      </button>
+                    {/* Navigation Bar inside Form Card */}
+                    <div className="wizard-footer-nav">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setFormStep(prev => Math.max(1, prev - 1))}
+                          disabled={formStep === 1}
+                          style={{
+                            background: 'transparent',
+                            color: formStep === 1 ? '#cbd5e1' : 'var(--text-dark)',
+                            border: 'none',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            cursor: formStep === 1 ? 'not-allowed' : 'pointer',
+                            textDecoration: 'underline',
+                            textUnderlineOffset: '3px'
+                          }}
+                        >
+                          Previous
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveVenue}
+                          disabled={isSubmittingVenue}
+                          style={{
+                            background: 'transparent',
+                            color: 'var(--text-dark)',
+                            border: 'none',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            textUnderlineOffset: '3px'
+                          }}
+                        >
+                          Save Venue
+                        </button>
+                      </div>
 
                       {formStep < 6 ? (
                         <button
+                          type="button"
                           onClick={() => setFormStep(prev => Math.min(6, prev + 1))}
-                          className="btn-add-venue"
-                          style={{ padding: '0.5rem 1.25rem' }}
+                          className="btn-wizard-next"
                         >
                           Next
                         </button>
                       ) : (
                         <button
+                          type="button"
                           onClick={handleSaveVenue}
                           disabled={isSubmittingVenue}
-                          className="btn-add-venue"
-                          style={{ padding: '0.5rem 1.25rem' }}
+                          className="btn-wizard-next"
                         >
                           {isSubmittingVenue ? 'Saving...' : 'Save Venue'}
                         </button>
@@ -2903,91 +3196,93 @@ function App() {
                 </div>
               </div>
 
-              {/* RIGHT COLUMN: SUMMARY SIDEBAR (1/3 width) */}
+              {/* RIGHT COLUMN: COMPLETENESS SIDEBAR CARD (1/3 width) */}
               <div className="add-venue-summary-col">
-                {/* Completeness Card */}
-                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-light)', padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 12px rgba(92,62,48,0.06)' }}>
-                  <div>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-dark)', marginBottom: '0.25rem' }}>Completeness score</h3>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Quality check status</span>
-                  </div>
-                  <div style={{ position: 'relative', width: '56px', height: '56px' }}>
-                    <svg width="56" height="56" viewBox="0 0 40 40" style={{ transform: 'rotate(-90deg)' }}>
-                      <circle cx="20" cy="20" r="16" fill="transparent" stroke="#e0e0e0" strokeWidth="3" />
-                      <circle
-                        cx="20"
-                        cy="20"
-                        r="16"
-                        fill="transparent"
-                        stroke={getCompletenessDetails(calculateCompleteness()).color}
-                        strokeWidth="3"
-                        strokeDasharray={2 * Math.PI * 16}
-                        strokeDashoffset={2 * Math.PI * 16 - (calculateCompleteness() / 100) * (2 * Math.PI * 16)}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dark)' }}>
-                      {calculateCompleteness()}%
-                    </div>
-                  </div>
-                </div>
-
-                {/* Form Progress Summary Details */}
-                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-light)', padding: '1.5rem', flex: 1, boxShadow: '0 4px 12px rgba(92,62,48,0.06)' }}>
-                  <h3 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700, borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
-                    VENUE ESSENTIALS
-                  </h3>
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-light)', overflow: 'hidden', boxShadow: '0 4px 12px rgba(92,62,48,0.06)' }}>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.8rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Name:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600, textAlign: 'right' }}>{newVenue.name || <i style={{ opacity: 0.5 }}>Not specified</i>}</span>
+                  {/* Brown Pattern Header for Completeness Score */}
+                  <div className="wizard-pattern-banner" style={{ padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div className="wizard-banner-content">
+                      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                        Completeness score
+                      </h3>
                     </div>
+
+                    {/* Circular Score Arc */}
+                    <div className="wizard-banner-content" style={{ position: 'relative', width: '48px', height: '48px' }}>
+                      <svg width="48" height="48" viewBox="0 0 40 40" style={{ transform: 'rotate(-90deg)' }}>
+                        <circle cx="20" cy="20" r="16" fill="transparent" stroke="rgba(255,255,255,0.2)" strokeWidth="3" />
+                        <circle
+                          cx="20"
+                          cy="20"
+                          r="16"
+                          fill="transparent"
+                          stroke="#ef4444"
+                          strokeWidth="3.5"
+                          strokeDasharray={2 * Math.PI * 16}
+                          strokeDashoffset={2 * Math.PI * 16 - (calculateCompleteness() / 100) * (2 * Math.PI * 16)}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800, color: '#ffffff' }}>
+                        {calculateCompleteness()}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Live Sections */}
+                  <div style={{ padding: '1.5rem 1.5rem' }}>
                     
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Type:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{newVenue.venue_type || 'Type not selected'}</span>
+                    {/* PA SYSTEM Section */}
+                    {formStep >= 4 && (
+                      <div className="side-summary-block">
+                        <div className="side-summary-title">PA SYSTEM</div>
+                        <div className="side-summary-row">
+                          <span className="side-summary-key">Has PA System:</span>
+                          <span className="side-summary-val">{newVenue.has_pa_system ? 'Yes' : 'No'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* INTERNET Section */}
+                    {formStep >= 3 && (
+                      <div className="side-summary-block">
+                        <div className="side-summary-title">INTERNET</div>
+                        <div className="side-summary-row">
+                          <span className="side-summary-key">Wi-Fi Name:</span>
+                          <span className="side-summary-val">{newVenue.wifi_name || 'clyde@muzukuru.com'}</span>
+                        </div>
+                        <div className="side-summary-row">
+                          <span className="side-summary-key">Router Accessible:</span>
+                          <span className="side-summary-val">{newVenue.router_accessibility ? 'Yes' : 'No'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* POWER Section */}
+                    {formStep >= 2 && (
+                      <div className="side-summary-block">
+                        <div className="side-summary-title">POWER</div>
+                        <div className="side-summary-row">
+                          <span className="side-summary-key">Has Power:</span>
+                          <span className="side-summary-val">{newVenue.has_power ? 'Yes' : 'No'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* VENUE ESSENTIALS Section */}
+                    <div className="side-summary-block">
+                      <div className="side-summary-title">VENUE ESSENTIALS</div>
+                      <div className="side-summary-row">
+                        <span className="side-summary-key">Venue Name:</span>
+                        <span className="side-summary-val">{newVenue.name || 'Clyde'}</span>
+                      </div>
+                      <div className="side-summary-row">
+                        <span className="side-summary-key">Address:</span>
+                        <span className="side-summary-val">{newVenue.city || 'Harare'}</span>
+                      </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Capacity:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{newVenue.capacity || 'Not specified'}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Address:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600, textAlign: 'right' }}>
-                        {newVenue.address_one ? `${newVenue.address_one}, ${newVenue.city}` : `${newVenue.city}`}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Power status:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
-                        {newVenue.has_power ? `${newVenue.power_backup || 'Grid'}` : 'No power backup info'}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Internet status:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
-                        {newVenue.internet_service_provider || 'No internet info'}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>PA System:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
-                        {newVenue.has_pa_system ? `${newVenue.pa_system_provider || 'Built-in'}` : 'No PA Info'}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Contacts added:</span>
-                      <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
-                        {newVenue.contacts.filter(c => c.first_name.trim() || c.phone.trim()).length} contact(s)
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
