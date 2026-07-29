@@ -777,6 +777,8 @@ async def chat_with_agent(request: ChatRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(err)}")
 @app.get("/api/whatsapp/webhook")
+@app.get("/api/whatsapp/webhook")
+@app.get("/api/whatsapp/webhook/")
 def verify_meta_webhook(request: Request):
     """
     Verification endpoint required by Meta WhatsApp Cloud API.
@@ -786,12 +788,16 @@ def verify_meta_webhook(request: Request):
     token = params.get("hub.verify_token")
     challenge = params.get("hub.challenge")
     
+    logger.info(f"Meta webhook verification attempt: mode={mode}, token={token}")
+    
     if mode and token:
-        verify_token = os.getenv("META_VERIFY_TOKEN")
+        verify_token = os.getenv("META_VERIFY_TOKEN", "").strip()
         if mode == "subscribe" and token == verify_token:
             from fastapi.responses import PlainTextResponse
+            logger.info("Meta webhook verification SUCCESSFUL!")
             return PlainTextResponse(content=challenge)
         else:
+            logger.warning(f"Meta verify token mismatch: received '{token}', expected '{verify_token}'")
             raise HTTPException(status_code=403, detail="Verification token mismatch")
     return {"status": "ready"}
 
@@ -933,6 +939,7 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
 
 
 @app.post("/api/whatsapp/webhook")
+@app.post("/api/whatsapp/webhook/")
 async def receive_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Webhook endpoint to receive incoming WhatsApp messages from Twilio or Meta.
@@ -946,29 +953,54 @@ async def receive_whatsapp_webhook(request: Request, background_tasks: Backgroun
     if "application/x-www-form-urlencoded" in content_type:
         # Twilio payload
         form_data = await request.form()
-        sender = form_data.get("From")
+        raw_sender = form_data.get("From", "")
         message_body = form_data.get("Body")
-        if sender and sender.startswith("whatsapp:"):
-            sender = sender.split("whatsapp:")[1]
+        if raw_sender and raw_sender.startswith("whatsapp:"):
+            raw_sender = raw_sender.split("whatsapp:")[1]
+        digits = "".join([c for c in raw_sender if c.isdigit()])
+        sender = f"+{digits}" if digits else raw_sender
     else:
         # Meta payload (JSON)
         try:
             body = await request.json()
-            entry = body.get("entry", [])[0]
-            changes = entry.get("changes", [])[0]
-            value = changes.get("value", {})
-            messages = value.get("messages", [])
-            if messages:
-                message = messages[0]
-                sender = message.get("from")
-                if message.get("type") == "text":
-                    message_body = message.get("text", {}).get("body")
+            logger.info(f"Received Meta WhatsApp POST payload: {body}")
+            
+            entries = body.get("entry", [])
+            for entry in entries:
+                changes = entry.get("changes", [])
+                for change in changes:
+                    value = change.get("value", {})
+                    messages = value.get("messages", [])
+                    if messages:
+                        msg = messages[0]
+                        raw_sender = msg.get("from", "")
+                        digits = "".join([c for c in raw_sender if c.isdigit()])
+                        sender = f"+{digits}" if digits else raw_sender
+                        
+                        msg_type = msg.get("type")
+                        if msg_type == "text":
+                            message_body = msg.get("text", {}).get("body")
+                        elif msg_type == "interactive":
+                            interactive = msg.get("interactive", {})
+                            i_type = interactive.get("type")
+                            if i_type == "button_reply":
+                                message_body = interactive.get("button_reply", {}).get("title") or interactive.get("button_reply", {}).get("id")
+                            elif i_type == "list_reply":
+                                message_body = interactive.get("list_reply", {}).get("title") or interactive.get("list_reply", {}).get("id")
+                        elif msg_type == "button":
+                            message_body = msg.get("button", {}).get("text") or msg.get("button", {}).get("payload")
+                        else:
+                            if isinstance(msg.get("text"), dict):
+                                message_body = msg.get("text", {}).get("body")
+                        break
         except Exception as e:
-            logger.error(f"Error parsing Meta payload: {e}")
+            logger.error(f"Error parsing Meta JSON payload: {e}")
             
     if not sender or not message_body:
+        logger.info("Webhook received event without active text message content (e.g. delivery status update). Ignoring.")
         return {"status": "ignored", "reason": "No sender or message content found"}
         
+    logger.info(f"Queuing WhatsApp message from {sender}: '{message_body}' for background processing")
     background_tasks.add_task(process_incoming_whatsapp_message, sender, message_body)
     return {"status": "success", "message": "Webhook received and processing in background"}
 

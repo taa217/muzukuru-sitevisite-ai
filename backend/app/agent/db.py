@@ -51,31 +51,40 @@ def execute_write_query(query: str, params: Tuple = None) -> str:
     finally:
         conn.close()
 
+def normalize_phone_number(phone_number: str) -> str:
+    if not phone_number:
+        return ""
+    digits = "".join([c for c in phone_number if c.isdigit()])
+    return f"+{digits}" if digits else phone_number
+
 def save_whatsapp_message(phone_number: str, role: str, content: str) -> None:
     """
     Saves a message in the whatsapp_chat_history table.
     """
+    clean_phone = normalize_phone_number(phone_number)
     query = """
         INSERT INTO whatsapp_chat_history (phone_number, role, content)
         VALUES (%s, %s, %s);
     """
-    execute_write_query(query, (phone_number, role, content))
+    execute_write_query(query, (clean_phone, role, content))
 
 def get_whatsapp_chat_history(phone_number: str, limit: int = 20) -> List[Dict[str, Any]]:
     """
     Retrieves the last N messages for a given phone number, ordered chronologically.
     """
+    clean_phone = normalize_phone_number(phone_number)
     query = """
         SELECT role, content FROM (
             SELECT role, content, created_at
             FROM whatsapp_chat_history
-            WHERE phone_number = %s
+            WHERE phone_number = %s OR phone_number = %s
             ORDER BY created_at DESC
             LIMIT %s
         ) subquery
         ORDER BY created_at ASC;
     """
-    cols, rows = execute_read_query(query, (phone_number, limit))
+    # Check both clean_phone (with +) and unstripped phone
+    cols, rows = execute_read_query(query, (clean_phone, phone_number, limit))
     history = []
     for row in rows:
         history.append({
