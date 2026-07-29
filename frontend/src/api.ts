@@ -96,6 +96,7 @@ export interface Venue {
   completeness_score: number;
   is_private_residence: boolean;
   venue_type: string | null;
+  cover_image?: string | null;
   media_urls: any;
   notes?: string | null;
   wifi_name?: string | null;

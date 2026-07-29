@@ -134,16 +134,21 @@ def get_site_visits():
 def get_venues():
     try:
         query = """
-            SELECT id, name, address_one, address_two, suburb, city, capacity,
-                   has_power, power_type, power_backup, internet_service_provider,
-                   completeness_score, is_private_residence, venue_type, media_urls,
-                   has_pa_system, pa_system_provider, wifi_name, notes, floor_plan_file_urls,
-                   power_outage_rate, power_socket_type, power_distance_from_livestream_desk,
-                   internet_upload_speed, router_accessibility, router_distance_from_livestream,
-                   pa_system_distance_from_livestream, other_pa_system_providers, pa_system_contact_phone,
-                   pa_system_contact_email, website, facebook, instagram
-            FROM venue_venue
-            ORDER BY completeness_score DESC, name ASC;
+            SELECT v.id, v.name, v.address_one, v.address_two, v.suburb, v.city, v.capacity,
+                   v.has_power, v.power_type, v.power_backup, v.internet_service_provider,
+                   v.completeness_score, v.is_private_residence, v.venue_type, v.media_urls,
+                   v.has_pa_system, v.pa_system_provider, v.wifi_name, v.notes, v.floor_plan_file_urls,
+                   v.power_outage_rate, v.power_socket_type, v.power_distance_from_livestream_desk,
+                   v.internet_upload_speed, v.router_accessibility, v.router_distance_from_livestream,
+                   v.pa_system_distance_from_livestream, v.other_pa_system_providers, v.pa_system_contact_phone,
+                   v.pa_system_contact_email, v.website, v.facebook, v.instagram,
+                   COALESCE(
+                       (SELECT file FROM venue_venuedocument WHERE venue_id = v.id AND is_cover = true AND file ~* '\\.(jpg|jpeg|png|webp|jfif)$' LIMIT 1),
+                       (SELECT file FROM venue_venuedocument WHERE venue_id = v.id AND file_type = 'venue_photos' AND file ~* '\\.(jpg|jpeg|png|webp|jfif)$' ORDER BY id ASC LIMIT 1),
+                       (SELECT file FROM venue_venuedocument WHERE venue_id = v.id AND file ~* '\\.(jpg|jpeg|png|webp|jfif)$' ORDER BY id ASC LIMIT 1)
+                   ) as cover_image
+            FROM venue_venue v
+            ORDER BY v.completeness_score DESC, v.name ASC;
         """
         cols, rows = execute_read_query(query)
         venues = []
@@ -181,7 +186,8 @@ def get_venues():
                 "pa_system_contact_email": row[29],
                 "website": row[30],
                 "facebook": row[31],
-                "instagram": row[32]
+                "instagram": row[32],
+                "cover_image": row[33]
             })
         return venues
     except Exception as e:

@@ -1009,7 +1009,18 @@ function App() {
   };
 
   // Venue UI Helper functions
+  const formatMediaUrl = (filePath: string | null | undefined) => {
+    if (!filePath) return null;
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
+    const baseUrl = import.meta.env.VITE_MEDIA_BASE_URL || 'https://staging.muzukuru.com/media';
+    return `${baseUrl.replace(/\/$/, '')}/${filePath.replace(/^\//, '')}`;
+  };
+
   const getVenueImage = (venue: Venue) => {
+    if (venue.cover_image) {
+      const url = formatMediaUrl(venue.cover_image);
+      if (url) return url;
+    }
     const name = venue.name.toLowerCase();
     if (name.includes('abiding hope')) {
       return '/abiding_hope.png';
@@ -1670,7 +1681,21 @@ function App() {
                         {/* Media Section */}
                         <div className="venue-card-media">
                           {imageSrc ? (
-                            <img src={imageSrc} alt={venue.name} className="venue-card-img" />
+                            <img 
+                              src={imageSrc} 
+                              alt={venue.name} 
+                              className="venue-card-img" 
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                const type = (venue.venue_type || '').toLowerCase();
+                                const fallback = type.includes('church') ? '/all_souls.png' : (type.includes('hall') || type.includes('restaurant') ? '/alo_alo.png' : null);
+                                if (fallback && target.src !== window.location.origin + fallback) {
+                                  target.src = fallback;
+                                } else {
+                                  target.style.display = 'none';
+                                }
+                              }}
+                            />
                           ) : (
                             <div style={{
                               height: '100%',
@@ -1886,7 +1911,19 @@ function App() {
                       
                       {/* 1. TOP HERO BANNER */}
                       <div className="venue-hero-banner">
-                        <img src={heroImg} alt={selectedVenue.name} className="hero-banner-img" />
+                        <img 
+                          src={heroImg} 
+                          alt={selectedVenue.name} 
+                          className="hero-banner-img" 
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            const type = (selectedVenue.venue_type || '').toLowerCase();
+                            const fallback = type.includes('church') ? '/all_souls.png' : '/alo_alo.png';
+                            if (target.src !== window.location.origin + fallback) {
+                              target.src = fallback;
+                            }
+                          }}
+                        />
                         <div className="hero-overlay-content">
                           {/* Top Left Edit Icon */}
                           <button className="hero-edit-btn" title="Edit Cover Photo">
@@ -2081,25 +2118,40 @@ function App() {
                         {venueDetailsTab === 'floor_plans' && (
                           <div className="detail-white-card">
                             <div className="card-header-with-action">
-                              <h3>Floor Plans & Diagrams</h3>
+                              <h3>Floor Plans & Documents ({venueDocuments.length})</h3>
                             </div>
                             {venueDocuments.length === 0 ? (
                               <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                                 <ImageIcon size={44} style={{ opacity: 0.4, marginBottom: '0.75rem' }} />
-                                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>No Floor Plan Uploaded</h4>
+                                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-dark)' }}>No Documents Uploaded</h4>
                                 <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>
                                   No blueprint documents or camera setup diagrams recorded in database for this venue.
                                 </p>
                               </div>
                             ) : (
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                                {venueDocuments.map(doc => (
-                                  <div key={doc.id} style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <ImageIcon size={24} style={{ color: 'var(--primary-color)' }} />
-                                    <div style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.file.split('/').pop()}</div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{doc.file_type || 'Document'}</div>
-                                  </div>
-                                ))}
+                                {venueDocuments.map(doc => {
+                                  const url = formatMediaUrl(doc.file);
+                                  const isImg = /\.(jpg|jpeg|png|webp|jfif)$/i.test(doc.file);
+                                  const filename = doc.file.split('/').pop() || doc.file;
+                                  return (
+                                    <a key={doc.id} href={url || '#'} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+                                      <div style={{ padding: '0.75rem', border: '1px solid var(--border-light)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-card, #fff)' }}>
+                                        {isImg && url ? (
+                                          <img src={url} alt={filename} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px' }} />
+                                        ) : (
+                                          <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5', borderRadius: '8px' }}>
+                                            <ImageIcon size={32} style={{ color: 'var(--primary-color)' }} />
+                                          </div>
+                                        )}
+                                        <div style={{ fontWeight: 700, fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filename}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                                          {doc.file_type || 'Document'} {doc.is_cover ? '• Cover' : ''}
+                                        </div>
+                                      </div>
+                                    </a>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -2110,11 +2162,28 @@ function App() {
                             <div className="card-header-with-action">
                               <h3>Gallery</h3>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                              <img src={heroImg} alt="Gallery 1" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px' }} />
-                              <img src="/alo_alo.png" alt="Gallery 2" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px' }} />
-                              <img src="/abiding_hope.png" alt="Gallery 3" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px' }} />
-                            </div>
+                            {(() => {
+                              const photoDocs = venueDocuments.filter(d => /\.(jpg|jpeg|png|webp|jfif)$/i.test(d.file));
+                              if (photoDocs.length > 0) {
+                                return (
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                                    {photoDocs.map(doc => {
+                                      const url = formatMediaUrl(doc.file);
+                                      return (
+                                        <a key={doc.id} href={url || '#'} target="_blank" rel="noopener noreferrer">
+                                          <img src={url || ''} alt={doc.file.split('/').pop()} style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '12px' }} />
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                                  <img src={heroImg} alt="Venue Cover" style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '12px' }} />
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
