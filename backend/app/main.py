@@ -795,45 +795,11 @@ def verify_meta_webhook(request: Request):
             raise HTTPException(status_code=403, detail="Verification token mismatch")
     return {"status": "ready"}
 
-@app.post("/api/whatsapp/webhook")
-async def receive_whatsapp_webhook(request: Request):
+async def process_incoming_whatsapp_message(sender: str, message_body: str):
     """
-    Webhook endpoint to receive incoming WhatsApp messages from Twilio or Meta.
-    It runs the query through the AI database agent and responds automatically.
+    Background task to process an incoming WhatsApp message, invoke the agent,
+    and reply back via WhatsApp.
     """
-    content_type = request.headers.get("content-type", "")
-    sender = None
-    message_body = None
-    
-    if "application/x-www-form-urlencoded" in content_type:
-        # Twilio payload
-        form_data = await request.form()
-        # Form values from Twilio are typically format: whatsapp:+263770000000
-        sender = form_data.get("From")
-        message_body = form_data.get("Body")
-        if sender and sender.startswith("whatsapp:"):
-            sender = sender.split("whatsapp:")[1]
-    else:
-        # Meta payload (JSON)
-        try:
-            body = await request.json()
-            entry = body.get("entry", [])[0]
-            changes = entry.get("changes", [])[0]
-            value = changes.get("value", {})
-            messages = value.get("messages", [])
-            if messages:
-                message = messages[0]
-                sender = message.get("from")
-                if message.get("type") == "text":
-                    message_body = message.get("text", {}).get("body")
-        except Exception as e:
-            import logging
-            logging.error(f"Error parsing Meta payload: {e}")
-            
-    if not sender or not message_body:
-        return {"status": "ignored", "reason": "No sender or message found"}
-        
-
     try:
         # 1. Save user's message to database history
         try:
@@ -960,14 +926,51 @@ async def receive_whatsapp_webhook(request: Request):
         
         # 7. Send message back to user via WhatsApp
         send_whatsapp_message(sender, ai_response)
-        
-        return {"status": "success", "response": ai_response}
+        logger.info(f"Successfully processed incoming WhatsApp message from {sender} and sent reply.")
         
     except Exception as e:
-        import logging
-        logging.error(f"Error handling WhatsApp webhook: {e}", exc_info=True)
-        # Return 200 OK to the API Gateway to prevent infinite retries, but log the error
-        return {"status": "error", "detail": str(e)}
+        logger.error(f"Error processing incoming WhatsApp message from {sender}: {e}", exc_info=True)
+
+
+@app.post("/api/whatsapp/webhook")
+async def receive_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Webhook endpoint to receive incoming WhatsApp messages from Twilio or Meta.
+    Returns HTTP 200 OK immediately to satisfy Meta's strict 5-second webhook response requirement,
+    and processes the agent response in the background.
+    """
+    content_type = request.headers.get("content-type", "")
+    sender = None
+    message_body = None
+    
+    if "application/x-www-form-urlencoded" in content_type:
+        # Twilio payload
+        form_data = await request.form()
+        sender = form_data.get("From")
+        message_body = form_data.get("Body")
+        if sender and sender.startswith("whatsapp:"):
+            sender = sender.split("whatsapp:")[1]
+    else:
+        # Meta payload (JSON)
+        try:
+            body = await request.json()
+            entry = body.get("entry", [])[0]
+            changes = entry.get("changes", [])[0]
+            value = changes.get("value", {})
+            messages = value.get("messages", [])
+            if messages:
+                message = messages[0]
+                sender = message.get("from")
+                if message.get("type") == "text":
+                    message_body = message.get("text", {}).get("body")
+        except Exception as e:
+            logger.error(f"Error parsing Meta payload: {e}")
+            
+    if not sender or not message_body:
+        return {"status": "ignored", "reason": "No sender or message content found"}
+        
+    background_tasks.add_task(process_incoming_whatsapp_message, sender, message_body)
+    return {"status": "success", "message": "Webhook received and processing in background"}
 
 if __name__ == "__main__":
 
