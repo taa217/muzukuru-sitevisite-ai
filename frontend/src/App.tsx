@@ -382,23 +382,29 @@ function App() {
   }, []);
 
   const calculateCompleteness = () => {
-    let score = 20; // base score
-    if (newVenue.name.trim()) score += 15;
-    if (newVenue.venue_type) score += 10;
+    let score = 0;
+    if (newVenue.name.trim()) score += 10;
+    if (newVenue.venue_type) score += 5;
     if (newVenue.capacity) score += 5;
+
     if (newVenue.address_one.trim()) score += 10;
     if (newVenue.suburb.trim()) score += 5;
     if (newVenue.city) score += 5;
 
-    if (newVenue.has_power) score += 10;
-    if (newVenue.power_backup) score += 5;
+    if (newVenue.has_power) score += 5;
+    if (newVenue.power_backup) score += 10;
+    if (newVenue.power_socket_type) score += 5;
+    if (newVenue.power_distance_from_livestream_desk) score += 5;
 
     if (newVenue.internet_service_provider) score += 10;
+    if (newVenue.wifi_name) score += 5;
+    if (newVenue.wifi_password) score += 5;
+    if (newVenue.router_accessibility) score += 5;
 
     if (newVenue.has_pa_system) score += 5;
+    if (newVenue.pa_system_provider) score += 5;
 
-    const validContact = newVenue.contacts.some(c => c.contact_id || c.first_name.trim() || c.phone.trim());
-    if (validContact) score += 10;
+    if (newVenue.website) score += 5;
 
     return Math.min(100, score);
   };

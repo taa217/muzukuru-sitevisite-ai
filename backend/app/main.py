@@ -833,10 +833,12 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
                 clean_phone = "".join([c for c in sender if c.isdigit()])
                 local_phone = clean_phone[-9:] if len(clean_phone) >= 9 else clean_phone
                 v_query = """
-                    SELECT v.id, v.name, v.completeness_score, v.capacity, v.has_power, v.power_backup, 
-                           v.internet_service_provider, v.wifi_name, v.has_pa_system, v.pa_system_provider,
-                           v.power_socket_type, v.power_distance_from_livestream_desk, v.router_accessibility,
-                           v.address_one, v.suburb, v.city, v.website
+                    SELECT v.id, v.name, v.completeness_score, v.capacity, v.has_power, v.power_backup, v.power_type,
+                           v.internet_service_provider, v.wifi_name, v.wifi_password, v.router_accessibility,
+                           v.power_socket_type, v.power_distance_from_livestream_desk, v.router_distance_from_livestream,
+                           v.has_pa_system, v.pa_system_provider,
+                           v.address_one, v.suburb, v.city, v.venue_type, v.is_private_residence,
+                           v.website, v.facebook, v.instagram, v.notes
                     FROM venue_venue v
                     JOIN venue_venue_contacts vc ON v.id = vc.venue_id
                     JOIN contact_contact c ON vc.contact_id = c.id
@@ -847,28 +849,56 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
                 v_cols, v_rows = execute_read_query(v_query, (f"%{local_phone}", f"%{sender.strip()}"))
                 if v_rows:
                     vr = v_rows[0]
-                    v_id, v_name, v_score, v_cap, v_pow, v_pow_back, v_isp, v_wifi, v_pa, v_pa_prov, v_sock, v_pow_dist, v_rtr, v_addr, v_sub, v_city, v_web = vr
+                    (
+                        v_id, v_name, v_score, v_cap, v_pow, v_pow_back, v_pow_type,
+                        v_isp, v_wifi, v_wifi_pass, v_rtr_acc,
+                        v_sock, v_pow_dist, v_rtr_dist,
+                        v_pa, v_pa_prov,
+                        v_addr, v_sub, v_city, v_type, v_priv,
+                        v_web, v_fb, v_ig, v_notes
+                    ) = vr
                     
                     filled_fields = []
                     missing_fields = []
                     
+                    # Priority Tier 1: Core Power & Capacity
                     if v_cap: filled_fields.append(f"capacity: {v_cap}") 
                     else: missing_fields.append("capacity (Tier 1)")
                     
                     if v_pow or v_pow_back: filled_fields.append(f"power_backup: {v_pow_back or 'Yes'}") 
                     else: missing_fields.append("has_power/power_backup (Tier 1)")
                     
+                    # Priority Tier 2: Wi-Fi & Internet Connectivity
                     if v_isp or v_wifi: filled_fields.append(f"wifi/isp: {v_isp or v_wifi}") 
-                    else: missing_fields.append("internet_service_provider/wifi_name (Tier 1)")
-                    
-                    if v_pa: filled_fields.append(f"pa_system: {v_pa_prov or 'Yes'}") 
-                    else: missing_fields.append("has_pa_system/pa_system_provider (Tier 2)")
-                    
-                    if v_sock or v_pow_dist: filled_fields.append("power socket/dist info recorded") 
-                    else: missing_fields.append("power_socket_type/power_distance (Tier 2)")
-                    
+                    else: missing_fields.append("internet_service_provider/wifi_name (Tier 2)")
+
+                    if v_wifi_pass: filled_fields.append("wifi_password recorded")
+                    else: missing_fields.append("wifi_password (Tier 2)")
+
+                    if v_rtr_acc: filled_fields.append(f"router_accessibility: {v_rtr_acc}")
+                    else: missing_fields.append("router_accessibility (Tier 2)")
+
+                    # Priority Tier 3: Electrical & Desk Distances
+                    if v_sock or v_pow_dist: filled_fields.append(f"power socket/dist: {v_pow_dist or v_sock}") 
+                    else: missing_fields.append("power_socket_type/power_distance (Tier 3)")
+
+                    # Priority Tier 4: Sound System & Vendor Details
+                    if v_pa or v_pa_prov: filled_fields.append(f"pa_system: {v_pa_prov or 'Yes'}") 
+                    else: missing_fields.append("has_pa_system/pa_system_provider (Tier 4)")
+
+                    # Priority Tier 5: Location & Venue Type
                     if v_addr: filled_fields.append(f"address: {v_addr}, {v_sub or ''}") 
-                    else: missing_fields.append("address_one/suburb/city (Tier 3)")
+                    else: missing_fields.append("address_one/suburb/city (Tier 5)")
+
+                    if v_type: filled_fields.append(f"venue_type: {v_type}")
+                    else: missing_fields.append("venue_type (Tier 5)")
+
+                    # Priority Tier 6: Online Presence & Website/Socials
+                    if v_web: filled_fields.append(f"website: {v_web}")
+                    else: missing_fields.append("website (Tier 6)")
+
+                    if v_fb or v_ig: filled_fields.append(f"socials: {v_fb or v_ig}")
+                    else: missing_fields.append("facebook/instagram (Tier 6)")
                     
                     venue_ctx_str = (
                         f"\nVENUE CONTEXT & MISSING FIELD TRACKER:\n"
