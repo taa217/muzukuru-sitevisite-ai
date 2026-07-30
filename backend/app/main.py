@@ -547,6 +547,7 @@ async def auto_trigger_booking_coordination(
                 "   - SECOND TOOL CALL (Message 2 - Questions): Follow-up message asking for the 2-3 key missing details (e.g. backup power, Wi-Fi, capacity, PA system) using full, intuitive, everyday conversational questions. Do NOT use dry lists or shorthand database fields.\n"
                 "   - CRITICAL ORDERING RULE: You MUST output the tool call for Message 1 (Introduction) FIRST in your tool calls list, and Message 2 (Questions) SECOND. Never reverse this sequence!\n"
                 f"4. CREW UPDATE MANDATE: When you finish talking with the coordinator and collecting details, update the assigned crew ({crew_info_str}) with ALL the venue info gotten using `send_whatsapp_message_tool`.\n"
+                f"5. AUTOMATED INTERNET SEARCH & CREW FOLLOW-UP: Immediately after updating the crew, automatically search the internet about the venue and crew preparation/setup details using `search_internet_tool` (and `scrape_website_tool` if useful). Update any missing venue fields in `venue_venue` using `run_sql_query_tool`, and send a follow-up WhatsApp message to the assigned crew ({crew_info_str}) with all your internet search findings, website links, directions, and prep insights.\n"
                 "Do NOT mention database tables, IDs, or completeness scores.\n"
                 "Ensure you use `send_whatsapp_message_tool` for each contact."
             )
@@ -921,7 +922,7 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
                     f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, warm, and conversational'} tone with them.\n"
                     + (
                         f"Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-2 questions at a time so they are never overwhelmed.\n"
-                        f"IMPORTANT CREW UPDATE MANDATE: When you finish processing client answers or when data collection completes, you MUST use `send_whatsapp_message_tool` to update the assigned crew with ALL the info and venue details gathered so far.{venue_ctx_str}"
+                        f"IMPORTANT CREW UPDATE & INTERNET SEARCH MANDATE: When you finish processing client answers or when data collection completes, you MUST use `send_whatsapp_message_tool` to update the assigned crew with ALL the info and venue details gathered so far. IMMEDIATELY AFTER THAT, automatically search the internet for the venue and crew preparation details using `search_internet_tool` (and `scrape_website_tool` if helpful), update any missing venue fields in the database (`venue_venue`), and send a follow-up WhatsApp message to the crew with all your internet search findings and setup insights.{venue_ctx_str}"
                         if not is_crew else ""
                     )
                 )
