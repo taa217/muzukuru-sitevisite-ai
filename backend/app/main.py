@@ -546,6 +546,7 @@ async def auto_trigger_booking_coordination(
                 "   - FIRST TOOL CALL (Message 1 - Introduction): Send a warm, conversational, and natural greeting FIRST. Introduce yourself as Nyasha from Muzukuru, mention that the crew is going to stream at their venue/place soon, and explain that you need to get a few details. Generate this message dynamically and naturally based on context so it feels human, not static or formulaic.\n"
                 "   - SECOND TOOL CALL (Message 2 - Questions): Follow-up message asking for the 2-3 key missing details (e.g. backup power, Wi-Fi, capacity, PA system) using full, intuitive, everyday conversational questions. Do NOT use dry lists or shorthand database fields.\n"
                 "   - CRITICAL ORDERING RULE: You MUST output the tool call for Message 1 (Introduction) FIRST in your tool calls list, and Message 2 (Questions) SECOND. Never reverse this sequence!\n"
+                f"4. CREW UPDATE MANDATE: When you finish talking with the coordinator and collecting details, update the assigned crew ({crew_info_str}) with ALL the venue info gotten using `send_whatsapp_message_tool`.\n"
                 "Do NOT mention database tables, IDs, or completeness scores.\n"
                 "Ensure you use `send_whatsapp_message_tool` for each contact."
             )
@@ -919,7 +920,8 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
                     f"Their relation to the company: {'Crew/Staff Member (internal)' if is_crew else 'Client/Venue Coordinator (external)'}.\n"
                     f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, warm, and conversational'} tone with them.\n"
                     + (
-                        f"Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-2 questions at a time so they are never overwhelmed.{venue_ctx_str}"
+                        f"Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-2 questions at a time so they are never overwhelmed.\n"
+                        f"IMPORTANT CREW UPDATE MANDATE: When you finish processing client answers or when data collection completes, you MUST use `send_whatsapp_message_tool` to update the assigned crew with ALL the info and venue details gathered so far.{venue_ctx_str}"
                         if not is_crew else ""
                     )
                 )
