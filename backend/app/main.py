@@ -540,14 +540,14 @@ async def auto_trigger_booking_coordination(
             content=(
                 f"Automated trigger: A new booking (site visit ID: {booking_id}) has been created for venue ID {venue_id}.\n"
                 "Please perform the following coordination tasks:\n"
-                f"1. Use `run_sql_query_tool` to inspect both `venue_sitevisit` (for site visit ID {booking_id}) and `venue_venue` (for venue ID {venue_id}) to gather venue and booking details.\n"
-                f"2. Inform the assigned crew ({crew_info_str}) using `send_whatsapp_message_tool` about the newly booked site visit. Use a friendly, buddy-like, informal tone. Tell them the venue name, booking schedule/notes, and that you are now reaching out to the venue coordinator {coordinator_name} ({coordinator_phone}) to collect any missing venue information.\n"
-                f"3. Reach out to the client/venue coordinator {coordinator_name} ({coordinator_phone}) using `send_whatsapp_message_tool` by sending TWO separate, sequential WhatsApp messages in STRICT ORDER:\n"
-                "   - FIRST TOOL CALL (Message 1 - Introduction): Send a warm, conversational, and natural greeting FIRST. Introduce yourself as Nyasha from Muzukuru, mention that the crew is going to stream at their venue/place soon, and explain that you need to get a few details. Generate this message dynamically and naturally based on context so it feels human, not static or formulaic.\n"
-                "   - SECOND TOOL CALL (Message 2 - Questions): Follow-up message asking for the 2-3 key missing details (e.g. backup power, Wi-Fi, capacity, PA system) using full, intuitive, everyday conversational questions. Do NOT use dry lists or shorthand database fields.\n"
-                "   - CRITICAL ORDERING RULE: You MUST output the tool call for Message 1 (Introduction) FIRST in your tool calls list, and Message 2 (Questions) SECOND. Never reverse this sequence!\n"
+                f"1. Use `run_sql_query_tool` to inspect `venue_venue` (for venue ID {venue_id}) and `venue_sitevisit` (for site visit ID {booking_id}) to check which specific columns are NULL or empty ('').\n"
+                f"2. Inform the assigned crew ({crew_info_str}) using `send_whatsapp_message_tool` about the newly booked site visit. Use a friendly, buddy-like, informal tone. Tell them the venue name, booking schedule/notes, and that you are reaching out to the venue coordinator {coordinator_name} ({coordinator_phone}).\n"
+                f"3. Reach out to the client/venue coordinator {coordinator_name} ({coordinator_phone}) using `send_whatsapp_message_tool`:\n"
+                "   - FIRST TOOL CALL (Message 1 - Introduction): Send a warm, conversational, and natural greeting FIRST. Introduce yourself as Nyasha from Muzukuru and mention that the crew is streaming at their venue soon.\n"
+                "   - SECOND TOOL CALL (Message 2 - Follow-up Questions): ONLY IF there are missing/unpopulated fields (NULL or empty string '') in `venue_venue`, send a follow-up message asking the top 1-2 missing questions (e.g. backup power, Wi-Fi password, router access, PA system, capacity). CRITICAL: If a field is ALREADY populated in `venue_venue` (e.g. filled when adding the venue), DO NOT ask the client for it! If ALL core fields are already filled in DB, DO NOT send Message 2 at all!\n"
+                "   - CRITICAL ORDERING RULE: Message 1 (Introduction) MUST ALWAYS be sent BEFORE Message 2 (Questions). Tool call #1 MUST be Introduction, tool call #2 MUST be Questions (if needed).\n"
                 f"4. CREW UPDATE MANDATE: When you finish talking with the coordinator and collecting details, update the assigned crew ({crew_info_str}) with ALL the venue info gotten using `send_whatsapp_message_tool`.\n"
-                f"5. AUTOMATED INTERNET SEARCH & CREW FOLLOW-UP: Immediately after updating the crew, automatically search the internet about the venue and crew preparation/setup details using `search_internet_tool` (and `scrape_website_tool` if useful). Update any missing venue fields in `venue_venue` using `run_sql_query_tool`, and send a follow-up WhatsApp message to the assigned crew ({crew_info_str}) with all your internet search findings, website links, directions, and prep insights.\n"
+                f"5. AUTOMATED INTERNET SEARCH & CREW FOLLOW-UP: Immediately after updating the crew, automatically search the internet about the venue and location using `search_internet_tool` (and `scrape_website_tool` if useful). Do NOT restrict your search to finding a website URL; search for ANY useful information (landmarks, directions, setup details, reviews, operating notes, social links, website). Update any missing venue fields in `venue_venue` using `run_sql_query_tool`, and send a follow-up WhatsApp message to the assigned crew ({crew_info_str}) with ALL your internet search findings, directions, background info, and prep insights.\n"
                 "Do NOT mention database tables, IDs, or completeness scores.\n"
                 "Ensure you use `send_whatsapp_message_tool` for each contact."
             )
@@ -906,9 +906,11 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
                     venue_ctx_str = (
                         f"\nVENUE CONTEXT & MISSING FIELD TRACKER:\n"
                         f"- Target Venue: '{v_name}' (ID: {v_id}, DB Score: {v_score}%).\n"
-                        f"- Filled Fields: {', '.join(filled_fields) if filled_fields else 'None'}.\n"
-                        f"- Missing Fields: {', '.join(missing_fields) if missing_fields else 'None (All fields complete!)'}.\n"
-                        f"- Action Required: Process any answers in the user's message, update `venue_venue` DB via SQL, and if missing fields remain, warmly acknowledge their response and ask the next missing question (max 1-2 questions at a time)."
+                        f"- Filled Fields (ALREADY IN DB - DO NOT ASK CLIENT FOR THESE): {', '.join(filled_fields) if filled_fields else 'None'}.\n"
+                        f"- Missing Fields (UNPOPULATED IN DB - ONLY ASK FROM THIS LIST): {', '.join(missing_fields) if missing_fields else 'None (All fields complete!)'}.\n"
+                        f"- Action Required: Process any answers in the user's message and update `venue_venue` DB via SQL. "
+                        f"CRITICAL: Check `Missing Fields`. Only ask the client about fields that are listed under `Missing Fields`. NEVER ask the client for fields listed under `Filled Fields` as they are already saved in DB! "
+                        f"If `Missing Fields` is empty or no missing fields remain, DO NOT ask any questions; thank the client, update the assigned crew with all DB details, and perform internet search."
                     )
             except Exception as v_err:
                 logger.warning(f"Failed to fetch venue context for coordinator {sender}: {v_err}")
@@ -921,8 +923,8 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
                     f"Their relation to the company: {'Crew/Staff Member (internal)' if is_crew else 'Client/Venue Coordinator (external)'}.\n"
                     f"Tone instructions: Use a {'friendly, buddy-like, informal, and joking' if is_crew else 'highly professional, polite, warm, and conversational'} tone with them.\n"
                     + (
-                        f"Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-2 questions at a time so they are never overwhelmed.\n"
-                        f"IMPORTANT CREW UPDATE & INTERNET SEARCH MANDATE: When you finish processing client answers or when data collection completes, you MUST use `send_whatsapp_message_tool` to update the assigned crew with ALL the info and venue details gathered so far. IMMEDIATELY AFTER THAT, automatically search the internet for the venue and crew preparation details using `search_internet_tool` (and `scrape_website_tool` if helpful), update any missing venue fields in the database (`venue_venue`), and send a follow-up WhatsApp message to the crew with all your internet search findings and setup insights.{venue_ctx_str}"
+                        f"Formatting guidelines for Client: Keep messages concise, intuitive, and easy to read. Use WhatsApp markdown (`*bolding*`, clear bullet points) and ask at most 1-2 questions at a time for fields that are missing in DB. NEVER ask for fields already in DB.\n"
+                        f"IMPORTANT CREW UPDATE & INTERNET SEARCH MANDATE: When you finish processing client answers or when data collection completes, you MUST use `send_whatsapp_message_tool` to update the assigned crew with ALL the info and venue details gathered so far. IMMEDIATELY AFTER THAT, automatically search the internet for ANY venue and location details (landmarks, directions, parking, operating notes, reviews, social links, website, setup specs) using `search_internet_tool` (and `scrape_website_tool` if helpful), update any missing venue fields in `venue_venue`, and send a follow-up WhatsApp message to the crew detailing ALL internet search findings and setup insights.{venue_ctx_str}"
                         if not is_crew else ""
                     )
                 )
