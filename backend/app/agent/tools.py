@@ -101,18 +101,20 @@ def run_sql_query_tool(query: str) -> str:
         return f"Error executing query: {str(e)}"
 
 @tool
-def send_whatsapp_message_tool(phone_number: str, message_body: str) -> str:
+def send_whatsapp_message_tool(phone_number: str, message_body: str = "", media_url: str | None = None) -> str:
     """
-    Sends a WhatsApp message to a specific phone number.
+    Sends a WhatsApp message to a specific phone number, with optional text content and/or an image URL.
     Use this tool when you need to contact a venue coordinator, manager, or owner to ask for missing information, schedule site visits, or send notifications.
+    You can also use this tool to send photos/images (e.g. venue images found on the internet) to crew members or coordinators by providing a valid media_url.
     The phone_number must include country code (e.g. '+263770000000').
     """
     try:
         from app.services.whatsapp import send_whatsapp_message
         from app.agent.db import save_whatsapp_message
-        res = send_whatsapp_message(phone_number, message_body)
+        res = send_whatsapp_message(phone_number, message_body=message_body, media_url=media_url)
         try:
-            save_whatsapp_message(phone_number, "assistant", message_body)
+            saved_content = f"[Media: {media_url}] {message_body}".strip() if media_url else message_body
+            save_whatsapp_message(phone_number, "assistant", saved_content)
         except Exception as db_err:
             import logging
             logging.getLogger(__name__).warning(f"Failed to save sent WhatsApp message to DB: {db_err}")
@@ -123,7 +125,7 @@ def send_whatsapp_message_tool(phone_number: str, message_body: str) -> str:
 @tool
 def search_internet_tool(query: str, max_results: int = 5) -> str:
     """
-    Search the internet for a given query and return a list of matching results with titles, URLs, and snippets.
+    Search the internet for a given text query and return a list of matching results with titles, URLs, and snippets.
     Use this tool when you need to find information that is not available in the database (such as contact info, location details, rates, or general facts about a venue/location).
     """
     try:
@@ -157,6 +159,46 @@ def search_internet_tool(query: str, max_results: int = 5) -> str:
                 return output
         except Exception as e2:
             return f"Error searching the internet: {str(e)} (Fallback error: {str(e2)})"
+
+@tool
+def search_images_tool(query: str, max_results: int = 5) -> str:
+    """
+    Search the internet for images/photos matching a query (e.g. '[Venue Name] Harare photo', '[Venue Name] entrance stage').
+    Returns a list of image results including direct Image URLs, titles, webpage source URLs, and thumbnail URLs.
+    Use this tool when researching a venue so you can find photos of the venue and share direct Image URLs with the crew via send_whatsapp_message_tool.
+    """
+    try:
+        from ddgs import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.images(query, max_results=max_results))
+            if not results:
+                return f"No image results found for query: '{query}'."
+            
+            output = f"Image search results for '{query}':\n\n"
+            for i, r in enumerate(results, 1):
+                output += f"{i}. Title: {r.get('title')}\n"
+                output += f"   Direct Image URL: {r.get('image')}\n"
+                output += f"   Source Webpage: {r.get('url')}\n"
+                output += f"   Thumbnail: {r.get('thumbnail')}\n\n"
+            return output
+    except Exception as e:
+        try:
+            import warnings
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            from duckduckgo_search import DDGS as OldDDGS
+            with OldDDGS() as ddgs:
+                results = list(ddgs.images(query, max_results=max_results))
+                if not results:
+                    return f"No image results found for query: '{query}'."
+                output = f"Image search results for '{query}':\n\n"
+                for i, r in enumerate(results, 1):
+                    output += f"{i}. Title: {r.get('title')}\n"
+                    output += f"   Direct Image URL: {r.get('image')}\n"
+                    output += f"   Source Webpage: {r.get('url')}\n"
+                    output += f"   Thumbnail: {r.get('thumbnail')}\n\n"
+                return output
+        except Exception as e2:
+            return f"Error searching for images: {str(e)} (Fallback error: {str(e2)})"
 
 @tool
 def scrape_website_tool(url: str) -> str:
@@ -210,6 +252,7 @@ tools = [
     run_sql_query_tool,
     send_whatsapp_message_tool,
     search_internet_tool,
+    search_images_tool,
     scrape_website_tool
 ]
 
