@@ -252,21 +252,59 @@ def enrich_search_query(query: str) -> str:
 @tool
 def search_internet_tool(query: str, max_results: int = 5) -> str:
     """
-    Search the internet for a given text query and return a list of matching results with titles, URLs, and snippets.
+    Search the internet for a given text query using Gemini Google Search Grounding and return accurate matching results, web snippets, and verified source links.
     CRITICAL: ALWAYS build context-rich, specific queries. NEVER pass a single generic keyword (e.g. NEVER search 'ufic' or 'rainbow').
     Include entity full name, entity category (e.g. 'church', 'hotel', 'wedding venue'), location ('Harare Zimbabwe'), and target attributes (e.g. 'address contact details photos generator PA system wifi').
     Example: 'UFIC Church Harare Zimbabwe address location contact details photos'.
     """
     enriched_query = enrich_search_query(query)
     log_detail = f"Query: '{query}'" + (f" (Enriched to: '{enriched_query}')" if enriched_query != query else "")
-    agent_tracker.log_activity("search", f"Searching Web: '{enriched_query}'", log_detail, status="running", extra={"query": query, "enriched_query": enriched_query})
+    agent_tracker.log_activity("search", f"Searching Web (Google): '{enriched_query}'", log_detail, status="running", extra={"query": query, "enriched_query": enriched_query})
     
+    # Primary: Use Gemini's Native Google Search Grounding via google-genai
+    try:
+        import os
+        from google import genai
+        from google.genai import types
+        
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            client = genai.Client(api_key=api_key)
+            prompt = (
+                f"Perform a Google Search for: {enriched_query}\n"
+                f"Provide a clear, detailed summary of key findings including physical address, phone numbers, email, website, and key features. "
+                f"Include official source web URLs."
+            )
+            
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())]
+                )
+            )
+            
+            if response.text:
+                output = f"Google Search results for '{enriched_query}':\n\n{response.text.strip()}\n\n"
+                if response.candidates and response.candidates[0].grounding_metadata:
+                    meta = response.candidates[0].grounding_metadata
+                    if meta.grounding_chunks:
+                        output += "Sources & Verified Links:\n"
+                        for chunk in meta.grounding_chunks:
+                            if chunk.web:
+                                output += f"- [{chunk.web.title}]({chunk.web.uri})\n"
+                agent_tracker.log_activity("search", f"Google Search Completed: '{enriched_query}'", output[:300] + "...", status="success", extra={"query": enriched_query})
+                return output
+    except Exception as gemini_err:
+        import logging
+        logging.getLogger(__name__).warning(f"Gemini Google Search failed, attempting DDG fallback: {gemini_err}")
+
+    # Secondary Fallback: DuckDuckGo Search
     try:
         from ddgs import DDGS
         with DDGS() as ddgs:
             results = ddgs.text(enriched_query, max_results=max_results)
             if not results and enriched_query != query:
-                # Fallback to raw query if enriched search returned nothing
                 results = ddgs.text(query, max_results=max_results)
                 active_q = query
             else:
