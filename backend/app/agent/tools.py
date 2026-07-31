@@ -175,27 +175,113 @@ def send_whatsapp_message_tool(phone_number: str, message_body: str = "", media_
         agent_tracker.log_activity("whatsapp", f"Failed to Send WhatsApp Message to {phone_number}", err_msg, status="error")
         return err_msg
 
+KNOWN_EXPANSIONS = {
+    "ufic": "UFIC Church",
+    "ufic church": "UFIC Church",
+    "hicc": "HICC Harare International Conference Centre",
+    "rainbow": "Rainbow Towers Hotel",
+    "rainbow towers": "Rainbow Towers Hotel",
+    "meikles": "Meikles Hotel",
+    "monomotapa": "Monomotapa Hotel",
+    "cresta": "Cresta Lodge Hotel",
+    "wild geese": "Wild Geese Lodge venue",
+    "zitf": "ZITF Grounds Bulawayo",
+    "rcz": "Reformed Church in Zimbabwe",
+    "zaoga": "ZAOGA Forward in Faith Church",
+    "afm": "AFM Apostolic Faith Mission Church",
+    "phd": "PHD Ministries Church",
+    "celestial": "Celestial Church",
+}
+
+LOCATION_KEYWORDS = [
+    "harare", "zimbabwe", "zim", "bulawayo", "chitungwiza", "mutare", "gweru",
+    "masvingo", "kwekwe", "kadoma", "chinhoyi", "victoria falls", "kariba", "ruwa", "epworth", "norton"
+]
+
+CATEGORY_KEYWORDS = [
+    "church", "venue", "hotel", "hall", "centre", "center", "lodge", "resort", "garden",
+    "grounds", "auditorium", "conference", "cathedral", "chapel", "stadium"
+]
+
+def enrich_search_query(query: str) -> str:
+    """
+    Enriches a raw or generic search query by adding geographic (Harare, Zimbabwe) and category context
+    (e.g., expanding 'ufic' to 'UFIC Church Harare Zimbabwe').
+    """
+    if not query or not query.strip():
+        return query
+
+    raw_query = query.strip()
+    query_lower = raw_query.lower()
+    
+    # 1. Expand known abbreviations if applicable
+    for abbr, expanded in KNOWN_EXPANSIONS.items():
+        if query_lower == abbr or query_lower.startswith(f"{abbr} "):
+            remainder = raw_query[len(abbr):].strip()
+            # Prevent word duplication if remainder starts with last word of expanded (e.g. 'church')
+            exp_words = expanded.split()
+            if exp_words and remainder:
+                last_word = exp_words[-1].lower()
+                rem_words = remainder.split()
+                if rem_words and rem_words[0].lower() == last_word:
+                    remainder = " ".join(rem_words[1:])
+            raw_query = f"{expanded} {remainder}".strip()
+            query_lower = raw_query.lower()
+            break
+
+    # 2. Check for category context
+    has_category = any(cat in query_lower for cat in CATEGORY_KEYWORDS)
+    
+    # 3. Check for geographic location context
+    has_location = any(loc in query_lower for loc in LOCATION_KEYWORDS)
+
+    # 4. Construct enriched query parts
+    additions = []
+    if not has_category:
+        additions.append("church venue")
+    if not has_location:
+        additions.append("Harare Zimbabwe")
+
+    if additions:
+        enriched = f"{raw_query} {' '.join(additions)}".strip()
+    else:
+        enriched = raw_query
+
+    return enriched
+
 @tool
 def search_internet_tool(query: str, max_results: int = 5) -> str:
     """
     Search the internet for a given text query and return a list of matching results with titles, URLs, and snippets.
-    Use this tool when you need to find information that is not available in the database (such as contact info, location details, rates, or general facts about a venue/location).
+    CRITICAL: ALWAYS build context-rich, specific queries. NEVER pass a single generic keyword (e.g. NEVER search 'ufic' or 'rainbow').
+    Include entity full name, entity category (e.g. 'church', 'hotel', 'wedding venue'), location ('Harare Zimbabwe'), and target attributes (e.g. 'address contact details photos generator PA system wifi').
+    Example: 'UFIC Church Harare Zimbabwe address location contact details photos'.
     """
-    agent_tracker.log_activity("search", f"Searching Web: '{query}'", f"Query: {query}", status="running", extra={"query": query})
+    enriched_query = enrich_search_query(query)
+    log_detail = f"Query: '{query}'" + (f" (Enriched to: '{enriched_query}')" if enriched_query != query else "")
+    agent_tracker.log_activity("search", f"Searching Web: '{enriched_query}'", log_detail, status="running", extra={"query": query, "enriched_query": enriched_query})
+    
     try:
         from ddgs import DDGS
         with DDGS() as ddgs:
-            results = ddgs.text(query, max_results=max_results)
-            if not results:
-                res = f"No results found on the internet for query: '{query}'."
+            results = ddgs.text(enriched_query, max_results=max_results)
+            if not results and enriched_query != query:
+                # Fallback to raw query if enriched search returned nothing
+                results = ddgs.text(query, max_results=max_results)
+                active_q = query
             else:
-                output = f"Internet search results for '{query}':\n\n"
+                active_q = enriched_query
+                
+            if not results:
+                res = f"No results found on the internet for query: '{query}' (searched as '{enriched_query}')."
+            else:
+                output = f"Internet search results for '{active_q}':\n\n"
                 for i, r in enumerate(results, 1):
                     output += f"{i}. Title: {r.get('title')}\n"
                     output += f"   URL: {r.get('href')}\n"
                     output += f"   Snippet: {r.get('body')}\n\n"
                 res = output
-            agent_tracker.log_activity("search", f"Web Search Completed: '{query}'", f"Found results for '{query}'", status="success", extra={"query": query})
+            agent_tracker.log_activity("search", f"Web Search Completed: '{active_q}'", f"Found results for '{active_q}'", status="success", extra={"query": active_q})
             return res
     except Exception as e:
         try:
@@ -203,46 +289,61 @@ def search_internet_tool(query: str, max_results: int = 5) -> str:
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             from duckduckgo_search import DDGS as OldDDGS
             with OldDDGS() as ddgs:
-                results = ddgs.text(query, max_results=max_results)
-                if not results:
-                    res = f"No results found on the internet for query: '{query}'."
+                results = ddgs.text(enriched_query, max_results=max_results)
+                if not results and enriched_query != query:
+                    results = ddgs.text(query, max_results=max_results)
+                    active_q = query
                 else:
-                    output = f"Internet search results for '{query}':\n\n"
+                    active_q = enriched_query
+                    
+                if not results:
+                    res = f"No results found on the internet for query: '{query}' (searched as '{enriched_query}')."
+                else:
+                    output = f"Internet search results for '{active_q}':\n\n"
                     for i, r in enumerate(results, 1):
                         output += f"{i}. Title: {r.get('title')}\n"
                         output += f"   URL: {r.get('href')}\n"
                         output += f"   Snippet: {r.get('body')}\n\n"
                     res = output
-                agent_tracker.log_activity("search", f"Web Search Completed: '{query}'", f"Found results for '{query}'", status="success", extra={"query": query})
+                agent_tracker.log_activity("search", f"Web Search Completed: '{active_q}'", f"Found results for '{active_q}'", status="success", extra={"query": active_q})
                 return res
         except Exception as e2:
             err_msg = f"Error searching the internet: {str(e)} (Fallback error: {str(e2)})"
-            agent_tracker.log_activity("search", f"Web Search Failed: '{query}'", err_msg, status="error", extra={"query": query})
+            agent_tracker.log_activity("search", f"Web Search Failed: '{enriched_query}'", err_msg, status="error", extra={"query": query, "enriched_query": enriched_query})
             return err_msg
 
 @tool
 def search_images_tool(query: str, max_results: int = 5) -> str:
     """
-    Search the internet for images/photos matching a query (e.g. '[Venue Name] Harare photo', '[Venue Name] entrance stage').
+    Search the internet for images/photos matching a query.
+    CRITICAL: ALWAYS build context-rich, specific queries (e.g. 'UFIC Church Harare Zimbabwe photo', 'Rainbow Towers Hotel Harare entrance stage photo').
+    NEVER use brief or generic 1-word queries. Include entity category, city, and target area (entrance, stage, layout, exterior).
     Returns a list of image results including direct Image URLs, titles, webpage source URLs, and thumbnail URLs.
-    Use this tool when researching a venue so you can find photos of the venue and share direct Image URLs with the crew via send_whatsapp_message_tool.
     """
-    agent_tracker.log_activity("image_search", f"Searching Venue Images: '{query}'", f"Query: {query}", status="running", extra={"query": query})
+    enriched_query = enrich_search_query(query)
+    log_detail = f"Query: '{query}'" + (f" (Enriched to: '{enriched_query}')" if enriched_query != query else "")
+    agent_tracker.log_activity("image_search", f"Searching Venue Images: '{enriched_query}'", log_detail, status="running", extra={"query": query, "enriched_query": enriched_query})
+    
     try:
         from ddgs import DDGS
         with DDGS() as ddgs:
-            results = list(ddgs.images(query, max_results=max_results))
+            results = list(ddgs.images(enriched_query, max_results=max_results))
+            active_q = enriched_query
+            if not results and enriched_query != query:
+                results = list(ddgs.images(query, max_results=max_results))
+                active_q = query
+
             if not results:
-                res = f"No image results found for query: '{query}'."
+                res = f"No image results found for query: '{query}' (searched as '{enriched_query}')."
             else:
-                output = f"Image search results for '{query}':\n\n"
+                output = f"Image search results for '{active_q}':\n\n"
                 for i, r in enumerate(results, 1):
                     output += f"{i}. Title: {r.get('title')}\n"
                     output += f"   Direct Image URL: {r.get('image')}\n"
                     output += f"   Source Webpage: {r.get('url')}\n"
                     output += f"   Thumbnail: {r.get('thumbnail')}\n\n"
                 res = output
-            agent_tracker.log_activity("image_search", f"Found {len(results) if isinstance(results, list) else 0} Images for '{query}'", res[:300], status="success", extra={"query": query})
+            agent_tracker.log_activity("image_search", f"Found {len(results) if isinstance(results, list) else 0} Images for '{active_q}'", res[:300], status="success", extra={"query": active_q})
             return res
     except Exception as e:
         try:
@@ -250,22 +351,27 @@ def search_images_tool(query: str, max_results: int = 5) -> str:
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             from duckduckgo_search import DDGS as OldDDGS
             with OldDDGS() as ddgs:
-                results = list(ddgs.images(query, max_results=max_results))
+                results = list(ddgs.images(enriched_query, max_results=max_results))
+                active_q = enriched_query
+                if not results and enriched_query != query:
+                    results = list(ddgs.images(query, max_results=max_results))
+                    active_q = query
+
                 if not results:
-                    res = f"No image results found for query: '{query}'."
+                    res = f"No image results found for query: '{query}' (searched as '{enriched_query}')."
                 else:
-                    output = f"Image search results for '{query}':\n\n"
+                    output = f"Image search results for '{active_q}':\n\n"
                     for i, r in enumerate(results, 1):
                         output += f"{i}. Title: {r.get('title')}\n"
                         output += f"   Direct Image URL: {r.get('image')}\n"
                         output += f"   Source Webpage: {r.get('url')}\n"
                         output += f"   Thumbnail: {r.get('thumbnail')}\n\n"
                     res = output
-                agent_tracker.log_activity("image_search", f"Found Images for '{query}'", res[:300], status="success", extra={"query": query})
+                agent_tracker.log_activity("image_search", f"Found Images for '{active_q}'", res[:300], status="success", extra={"query": active_q})
                 return res
         except Exception as e2:
             err_msg = f"Error searching for images: {str(e)} (Fallback error: {str(e2)})"
-            agent_tracker.log_activity("image_search", f"Image Search Failed: '{query}'", err_msg, status="error", extra={"query": query})
+            agent_tracker.log_activity("image_search", f"Image Search Failed: '{enriched_query}'", err_msg, status="error", extra={"query": query, "enriched_query": enriched_query})
             return err_msg
 
 @tool
