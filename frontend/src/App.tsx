@@ -115,7 +115,7 @@ function App() {
   // Real-time Agent Activity Tracker State
   const [agentEvents, setAgentEvents] = useState<AgentActivityEvent[]>([]);
   const [agentStatus, setAgentStatus] = useState<AgentStatusResponse | null>(null);
-  const [isSseConnected, setIsSseConnected] = useState<boolean>(false);
+  const [_isSseConnected, setIsSseConnected] = useState<boolean>(false);
   const [activityFilter, setActivityFilter] = useState<string>('all');
   const [activitySearchQuery, setActivitySearchQuery] = useState<string>('');
   const [autoScrollEvents, setAutoScrollEvents] = useState<boolean>(true);
