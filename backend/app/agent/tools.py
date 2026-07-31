@@ -133,35 +133,41 @@ def send_whatsapp_message_tool(phone_number: str, message_body: str = "", media_
     """
     Sends a WhatsApp message to a specific phone number, with optional text content and/or an image URL.
     Use this tool when you need to contact a venue coordinator, manager, or owner to ask for missing information, schedule site visits, or send notifications.
-    You can also use this tool to send photos/images (e.g. venue images found on the internet) to crew members or coordinators by providing a valid media_url.
+    CRITICAL: ALWAYS pass direct photo/image URLs in the `media_url` parameter so WhatsApp displays them as real images instead of raw text links.
     The phone_number must include country code (e.g. '+263770000000').
     """
+    from app.services.whatsapp import extract_image_urls_from_text, send_whatsapp_message
+    from app.agent.db import save_whatsapp_message
+    import logging
+
+    found_urls, cleaned_body = extract_image_urls_from_text(message_body)
+    effective_media_url = media_url
+    if not effective_media_url and found_urls:
+        effective_media_url = found_urls[0]
+
     agent_tracker.log_activity(
         "whatsapp",
         f"Sending WhatsApp Message to {phone_number}",
-        f"Recipient: {phone_number}\nMessage: {message_body}" + (f"\nMedia URL: {media_url}" if media_url else ""),
+        f"Recipient: {phone_number}\nMessage: {cleaned_body if effective_media_url else message_body}" + (f"\nMedia URL: {effective_media_url}" if effective_media_url else ""),
         status="running",
-        extra={"phone": phone_number, "message": message_body, "media_url": media_url}
+        extra={"phone": phone_number, "message": cleaned_body if effective_media_url else message_body, "media_url": effective_media_url}
     )
     
     try:
-        from app.services.whatsapp import send_whatsapp_message
-        from app.agent.db import save_whatsapp_message
         res = send_whatsapp_message(phone_number, message_body=message_body, media_url=media_url)
         try:
-            saved_content = f"[Media: {media_url}] {message_body}".strip() if media_url else message_body
+            saved_content = f"[Media: {effective_media_url}] {cleaned_body}".strip() if effective_media_url else message_body
             save_whatsapp_message(phone_number, "assistant", saved_content)
         except Exception as db_err:
-            import logging
             logging.getLogger(__name__).warning(f"Failed to save sent WhatsApp message to DB: {db_err}")
             
         success_msg = f"Successfully sent WhatsApp message to {phone_number}. Response: {res}"
         agent_tracker.log_activity(
             "whatsapp",
             f"WhatsApp Message Delivered to {phone_number}",
-            f"Message: {message_body[:200]}" + ("..." if len(message_body) > 200 else ""),
+            f"Message: {(cleaned_body if effective_media_url else message_body)[:200]}" + ("..." if len(message_body) > 200 else ""),
             status="success",
-            extra={"phone": phone_number, "message": message_body, "media_url": media_url}
+            extra={"phone": phone_number, "message": cleaned_body if effective_media_url else message_body, "media_url": effective_media_url}
         )
         return success_msg
     except Exception as e:

@@ -130,7 +130,10 @@ def get_agent_graph():
         "          * ⚡ *Technical & Setup Insights*: Power/backup details, Wi-Fi specs, audio/PA notes, and room layout info found online.\n"
         "          * 📝 *Venue Background & Crew Prep Notes*: Operational rules, visitor reviews, noise/timing restrictions, and practical prep tips for the crew during site visit setup.\n"
         "          * 💡 *Additional Online Findings & Extra Details*: Include ANY and ALL other information, background facts, pricing/rates, surrounding attractions, security/catering policies, contact names, past event info, or extra details discovered on the internet.\n"
-        "        - SEND VENUE IMAGE(S) TO CREW: Use `send_whatsapp_message_tool` with `media_url` pointing to the best direct Image URL found via `search_images_tool` (and optional caption message) to send real venue photo(s) to the assigned crew so they have visual context!"
+        "        - SEND VENUE IMAGE(S) TO CREW: Use `send_whatsapp_message_tool` with `media_url` pointing to the best direct Image URL found via `search_images_tool` (and optional caption message) to send real venue photo(s) to the assigned crew so they have visual context!\n\n"
+        "10. WHATSAPP MEDIA & REAL IMAGES MANDATE (CRITICAL):\n"
+        "   - Whenever you send, share, or forward photos/images to ANYONE on WhatsApp (crew, client, or coordinator), you MUST ALWAYS use `send_whatsapp_message_tool` with the direct image URL passed to the `media_url` parameter.\n"
+        "   - NEVER output raw direct image URLs (e.g. `https://...jpg`, `https://...png`) as plain text links inside your message text or chat output. ALWAYS attach them via `media_url` so WhatsApp displays them as real photos instead of plain text links!"
     )
 
     # Compile the ReAct agent

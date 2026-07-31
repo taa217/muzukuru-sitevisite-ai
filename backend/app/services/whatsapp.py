@@ -1,9 +1,38 @@
 import os
+import re
 import logging
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 
 logger = logging.getLogger(__name__)
+
+# Regex pattern to match image URLs in text (e.g. .jpg, .jpeg, .png, .webp, .gif, .jfif, .avif, .bmp, .svg, .tiff with optional query parameters)
+IMAGE_URL_PATTERN = re.compile(
+    r'https?://[^\s<>"\'\)\()]+\.(?:jpg|jpeg|png|webp|gif|jfif|avif|bmp|svg|tiff)(?:\?[^\s<>"\'\)\()]*)?',
+    re.IGNORECASE
+)
+
+def extract_image_urls_from_text(text: str) -> Tuple[List[str], str]:
+    """
+    Extracts all image URLs from a text string.
+    Returns (list_of_image_urls, cleaned_text_without_urls).
+    """
+    if not text:
+        return [], ""
+    
+    image_urls = IMAGE_URL_PATTERN.findall(text)
+    unique_urls = []
+    for url in image_urls:
+        if url not in unique_urls:
+            unique_urls.append(url)
+            
+    cleaned_text = text
+    for url in unique_urls:
+        cleaned_text = cleaned_text.replace(url, "")
+        
+    cleaned_text = re.sub(r'\[\s*\]|\(\s*\)', '', cleaned_text)
+    cleaned_text = re.sub(r'\n\s*\n', '\n', cleaned_text).strip()
+    return unique_urls, cleaned_text
 
 def send_whatsapp_message(to_number: str, message_body: str = "", media_url: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -20,12 +49,43 @@ def send_whatsapp_message(to_number: str, message_body: str = "", media_url: Opt
         # Default to prefixing + if missing
         clean_to = "+" + clean_to
         
+    # Auto-extract any image URLs embedded inside message_body text
+    found_urls, cleaned_body = extract_image_urls_from_text(message_body)
+    
+    all_media_urls = []
+    if media_url and media_url.strip():
+        all_media_urls.append(media_url.strip())
+        
+    for url in found_urls:
+        if url not in all_media_urls:
+            all_media_urls.append(url)
+
+    # If no image/media URLs exist, send standard text message
+    if not all_media_urls:
+        if provider == "twilio":
+            return _send_via_twilio(clean_to, message_body=message_body, media_url=None)
+        elif provider == "meta":
+            return _send_via_meta(clean_to, message_body=message_body, media_url=None)
+        else:
+            raise ValueError(f"Unsupported WHATSAPP_PROVIDER: '{provider}'")
+
+    # If media URLs exist, send real image attachments (media_url) via WhatsApp API
+    first_media = all_media_urls[0]
+    caption = cleaned_body
+    
     if provider == "twilio":
-        return _send_via_twilio(clean_to, message_body=message_body, media_url=media_url)
+        last_res = _send_via_twilio(clean_to, message_body=caption, media_url=first_media)
+        for extra_media in all_media_urls[1:]:
+            last_res = _send_via_twilio(clean_to, message_body="", media_url=extra_media)
+        return last_res
     elif provider == "meta":
-        return _send_via_meta(clean_to, message_body=message_body, media_url=media_url)
+        last_res = _send_via_meta(clean_to, message_body=caption, media_url=first_media)
+        for extra_media in all_media_urls[1:]:
+            last_res = _send_via_meta(clean_to, message_body="", media_url=extra_media)
+        return last_res
     else:
         raise ValueError(f"Unsupported WHATSAPP_PROVIDER: '{provider}'")
+
 
 def _send_via_twilio(to_number: str, message_body: str = "", media_url: Optional[str] = None) -> Dict[str, Any]:
     """Sends WhatsApp message (text and/or media) via Twilio's HTTP REST API using standard requests."""
