@@ -353,15 +353,97 @@ def search_internet_tool(query: str, max_results: int = 5) -> str:
 @tool
 def search_images_tool(query: str, max_results: int = 5) -> str:
     """
-    Search the internet for images/photos matching a query.
+    Search the internet for high-resolution images/photos matching a query using Gemini Google Search Grounding and page media scraping.
     CRITICAL: ALWAYS build context-rich, specific queries (e.g. 'UFIC Church Harare Zimbabwe photo', 'Rainbow Towers Hotel Harare entrance stage photo').
     NEVER use brief or generic 1-word queries. Include entity category, city, and target area (entrance, stage, layout, exterior).
     Returns a list of image results including direct Image URLs, titles, webpage source URLs, and thumbnail URLs.
     """
     enriched_query = enrich_search_query(query)
     log_detail = f"Query: '{query}'" + (f" (Enriched to: '{enriched_query}')" if enriched_query != query else "")
-    agent_tracker.log_activity("image_search", f"Searching Venue Images: '{enriched_query}'", log_detail, status="running", extra={"query": query, "enriched_query": enriched_query})
+    agent_tracker.log_activity("image_search", f"Searching Venue Images (Gemini + Grounding): '{enriched_query}'", log_detail, status="running", extra={"query": query, "enriched_query": enriched_query})
     
+    found_images = []
+    
+    # Primary: Gemini Google Search Grounding + OpenGraph Page Scraping
+    try:
+        import os
+        import requests
+        from bs4 import BeautifulSoup
+        from urllib.parse import urljoin
+        from google import genai
+        from google.genai import types
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            client = genai.Client(api_key=api_key)
+            prompt = f"Search Google for official websites, photo galleries, press coverage, or articles featuring photos of: {enriched_query}."
+            
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())]
+                )
+            )
+            
+            grounded_links = []
+            if response.candidates and response.candidates[0].grounding_metadata:
+                for chunk in response.candidates[0].grounding_metadata.grounding_chunks:
+                    if chunk.web and chunk.web.uri:
+                        grounded_links.append((chunk.web.title or "Venue Page", chunk.web.uri))
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+
+            for page_title, link in grounded_links[:8]:
+                if len(found_images) >= max_results:
+                    break
+                try:
+                    r = requests.get(link, headers=headers, timeout=6, allow_redirects=True)
+                    if r.status_code == 200:
+                        soup = BeautifulSoup(r.text, "html.parser")
+                        # Check og:image & twitter:image meta tags (HD hero photos)
+                        og_img = (
+                            soup.find("meta", property="og:image") or
+                            soup.find("meta", attrs={"name": "og:image"}) or
+                            soup.find("meta", property="twitter:image") or
+                            soup.find("meta", attrs={"name": "twitter:image"})
+                        )
+                        if og_img and og_img.get("content"):
+                            img_url = og_img["content"].strip()
+                            if img_url.startswith("//"):
+                                img_url = "https:" + img_url
+                            elif not img_url.startswith("http"):
+                                img_url = urljoin(link, img_url)
+                            
+                            # Filter out tiny icons or tracking pixels
+                            if not any(bad in img_url.lower() for bad in ["logo", "icon", "avatar", "1x1", "pixel", "favicon"]):
+                                title = soup.title.string.strip() if soup.title and soup.title.string else page_title
+                                if not any(img["image"] == img_url for img in found_images):
+                                    found_images.append({
+                                        "title": title,
+                                        "image": img_url,
+                                        "url": link,
+                                        "thumbnail": img_url
+                                    })
+                except Exception:
+                    continue
+
+            if found_images:
+                output = f"High-Resolution Image search results for '{enriched_query}':\n\n"
+                for i, r in enumerate(found_images[:max_results], 1):
+                    output += f"{i}. Title: {r.get('title')}\n"
+                    output += f"   Direct Image URL: {r.get('image')}\n"
+                    output += f"   Source Webpage: {r.get('url')}\n"
+                    output += f"   Thumbnail: {r.get('thumbnail')}\n\n"
+                agent_tracker.log_activity("image_search", f"Found {len(found_images)} HD Images for '{enriched_query}'", output[:300], status="success", extra={"query": enriched_query})
+                return output
+    except Exception as gemini_err:
+        import logging
+        logging.getLogger(__name__).warning(f"Gemini image grounding failed, falling back to DDG: {gemini_err}")
+
+    # Fallback: DuckDuckGo Images
     try:
         from ddgs import DDGS
         with DDGS() as ddgs:
