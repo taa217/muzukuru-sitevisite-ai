@@ -52,7 +52,11 @@ import {
   fetchVenueDocuments,
   fetchVenueBookings,
   createVenueContact,
-  getAllContacts
+  getAllContacts,
+  getAgentActivityHistory,
+  clearAgentActivityHistory,
+  getAgentStatus,
+  connectAgentActivityStream
 } from './api';
 import type {
   ChatMessage,
@@ -61,7 +65,9 @@ import type {
   VenueContact,
   VenueLayout,
   VenueDocument,
-  VenueBooking
+  VenueBooking,
+  AgentActivityEvent,
+  AgentStatusResponse
 } from './api';
 
 interface BookingSuccessInfo {
@@ -102,9 +108,20 @@ function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'chat' | 'venues' | 'add_venue' | 'add_booking' | 'venue_details'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'venues' | 'add_venue' | 'add_booking' | 'venue_details' | 'agent_monitor'>('chat');
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
   const [venueDetailsTab, setVenueDetailsTab] = useState<'general' | 'rooms' | 'floor_plans' | 'gallery' | 'bookings' | 'contacts'>('general');
+
+  // Real-time Agent Activity Tracker State
+  const [agentEvents, setAgentEvents] = useState<AgentActivityEvent[]>([]);
+  const [agentStatus, setAgentStatus] = useState<AgentStatusResponse | null>(null);
+  const [isSseConnected, setIsSseConnected] = useState<boolean>(false);
+  const [activityFilter, setActivityFilter] = useState<string>('all');
+  const [activitySearchQuery, setActivitySearchQuery] = useState<string>('');
+  const [autoScrollEvents, setAutoScrollEvents] = useState<boolean>(true);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const eventsContainerRef = useRef<HTMLDivElement>(null);
+
 
   // Form State for Adding a Booking
   const [bookingVenueId, setBookingVenueId] = useState<string>('');
@@ -143,6 +160,58 @@ function App() {
       setToastNotification(current => (current?.id === id ? null : current));
     }, 4000);
   };
+
+  // Real-time Agent Event Subscription Stream Hook
+  useEffect(() => {
+    getAgentStatus().then(status => setAgentStatus(status)).catch(err => console.warn(err));
+    getAgentActivityHistory().then(history => setAgentEvents(history)).catch(err => console.warn(err));
+
+    const sse = connectAgentActivityStream(
+      (event) => {
+        setIsSseConnected(true);
+        if (event.event_type === 'init') {
+          if (event.history) setAgentEvents(event.history);
+          if (event.agent_status) setAgentStatus(event.agent_status as any);
+        } else if (event.event_type === 'ping') {
+          if (event.agent_status) setAgentStatus(event.agent_status as any);
+        } else {
+          setAgentEvents(prev => {
+            if (prev.some(e => e.id === event.id)) return prev;
+            return [event, ...prev];
+          });
+          if (event.agent_status) {
+            setAgentStatus(prev => ({
+              ...(prev || {
+                status: 'idle',
+                current_task: null,
+                active_booking_id: null,
+                active_venue_id: null,
+                task_started_at: null,
+                total_tasks_completed: 0,
+                total_events_logged: 0
+              }),
+              status: event.agent_status || 'idle',
+              current_task: event.current_task !== undefined ? event.current_task : prev?.current_task || null
+            }));
+          }
+        }
+      },
+      () => {
+        setIsSseConnected(false);
+      }
+    );
+
+    return () => {
+      sse.close();
+    };
+  }, []);
+
+  // Auto-scroll activity stream container when new events arrive
+  useEffect(() => {
+    if (autoScrollEvents && eventsContainerRef.current) {
+      eventsContainerRef.current.scrollTop = 0;
+    }
+  }, [agentEvents, autoScrollEvents]);
 
   // Fetch venue contacts for the visit modal whenever selected venue changes
   useEffect(() => {
@@ -1168,6 +1237,229 @@ function App() {
     return [];
   };
 
+  const renderAgentMonitorView = () => {
+    const isRunning = agentStatus?.status === 'active' || agentStatus?.status === 'thinking';
+    
+    // Filter events
+    const filteredEvents = agentEvents.filter(event => {
+      // 1. Filter type
+      if (activityFilter === 'whatsapp' && event.event_type !== 'whatsapp') return false;
+      if (activityFilter === 'sql' && event.event_type !== 'sql') return false;
+      if (activityFilter === 'search' && (event.event_type !== 'search' && event.event_type !== 'image_search' && event.event_type !== 'web_scrape')) return false;
+      if (activityFilter === 'tasks' && (event.event_type !== 'task_start' && event.event_type !== 'task_complete' && event.event_type !== 'thought')) return false;
+
+      // 2. Text query
+      if (activitySearchQuery.trim()) {
+        const q = activitySearchQuery.toLowerCase().trim();
+        const inTitle = event.title.toLowerCase().includes(q);
+        const inDetails = (event.details || '').toLowerCase().includes(q);
+        const inType = event.event_type.toLowerCase().includes(q);
+        return inTitle || inDetails || inType;
+      }
+      return true;
+    });
+
+    const whatsappCount = agentEvents.filter(e => e.event_type === 'whatsapp').length;
+    const sqlCount = agentEvents.filter(e => e.event_type === 'sql').length;
+    const searchCount = agentEvents.filter(e => e.event_type === 'search' || e.event_type === 'image_search' || e.event_type === 'web_scrape').length;
+    const tasksCount = agentEvents.filter(e => e.event_type === 'task_start' || e.event_type === 'task_complete' || e.event_type === 'thought').length;
+
+    return (
+      <div className="agent-monitor-view">
+        {/* Top Header Banner */}
+        <div className="agent-monitor-header">
+          <div className="agent-status-banner">
+            <div className="agent-monitor-avatar">
+              <Bot size={24} />
+              {isRunning && <span className="live-status-dot-badge" />}
+            </div>
+            <div className="agent-monitor-title-box">
+              <div className="agent-monitor-title">
+                <span>Nyasha AI Execution Stream</span>
+                <span className={`agent-state-pill ${agentStatus?.status || 'idle'}`}>
+                  <span style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    backgroundColor: isRunning ? '#10b981' : '#9ca3af'
+                  }} />
+                  {agentStatus?.status === 'active' ? 'Active - Executing Task' : agentStatus?.status === 'thinking' ? 'Reasoning & Selecting Tools' : 'Agent Ready / Idle'}
+                </span>
+              </div>
+              <div className="agent-task-subtitle">
+                <Sparkles size={12} />
+                <span>
+                  {agentStatus?.current_task ? `Current Task: ${agentStatus.current_task}` : 'Monitoring background tasks, WhatsApp webhooks & site visit checks live'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="agent-controls-group">
+            <button
+              className="agent-control-btn"
+              onClick={async () => {
+                await clearAgentActivityHistory();
+                setAgentEvents([]);
+                showToast('Agent activity history cleared.', 'info');
+              }}
+            >
+              <Trash2 size={14} />
+              <span>Clear History</span>
+            </button>
+
+            <button
+              className={`agent-control-btn ${autoScrollEvents ? 'primary' : ''}`}
+              onClick={() => setAutoScrollEvents(!autoScrollEvents)}
+            >
+              <Clock size={14} />
+              <span>Auto-Scroll: {autoScrollEvents ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Metrics Grid */}
+        <div className="agent-metrics-grid">
+          <div className="agent-metric-card">
+            <div className="metric-icon-box whatsapp"><MessageSquare size={20} /></div>
+            <div className="metric-data">
+              <span className="metric-value">{whatsappCount}</span>
+              <span className="metric-label">WhatsApp Messages</span>
+            </div>
+          </div>
+
+          <div className="agent-metric-card">
+            <div className="metric-icon-box sql"><Database size={20} /></div>
+            <div className="metric-data">
+              <span className="metric-value">{sqlCount}</span>
+              <span className="metric-label">SQL DB Queries</span>
+            </div>
+          </div>
+
+          <div className="agent-metric-card">
+            <div className="metric-icon-box search"><Search size={20} /></div>
+            <div className="metric-data">
+              <span className="metric-value">{searchCount}</span>
+              <span className="metric-label">Web & Image Searches</span>
+            </div>
+          </div>
+
+          <div className="agent-metric-card">
+            <div className="metric-icon-box tasks"><CheckCircle2 size={20} /></div>
+            <div className="metric-data">
+              <span className="metric-value">{agentStatus?.total_tasks_completed || 0}</span>
+              <span className="metric-label">Tasks Completed</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Feed Container */}
+        <div className="agent-feed-container">
+          <div className="feed-toolbar">
+            <div className="filter-pills-group">
+              <button className={`filter-pill ${activityFilter === 'all' ? 'active' : ''}`} onClick={() => setActivityFilter('all')}>
+                All ({agentEvents.length})
+              </button>
+              <button className={`filter-pill ${activityFilter === 'whatsapp' ? 'active' : ''}`} onClick={() => setActivityFilter('whatsapp')}>
+                💬 WhatsApp ({whatsappCount})
+              </button>
+              <button className={`filter-pill ${activityFilter === 'sql' ? 'active' : ''}`} onClick={() => setActivityFilter('sql')}>
+                🗄️ SQL Queries ({sqlCount})
+              </button>
+              <button className={`filter-pill ${activityFilter === 'search' ? 'active' : ''}`} onClick={() => setActivityFilter('search')}>
+                🔍 Web Research ({searchCount})
+              </button>
+              <button className={`filter-pill ${activityFilter === 'tasks' ? 'active' : ''}`} onClick={() => setActivityFilter('tasks')}>
+                🚀 Tasks ({tasksCount})
+              </button>
+            </div>
+
+            <div className="feed-search-box">
+              <Search size={13} color="var(--text-muted)" />
+              <input
+                type="text"
+                className="feed-search-input"
+                placeholder="Filter logs by query, phone..."
+                value={activitySearchQuery}
+                onChange={(e) => setActivitySearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="activity-events-list" ref={eventsContainerRef}>
+            {filteredEvents.length === 0 ? (
+              <div className="empty-activity-state">
+                <Bot size={36} color="var(--text-muted)" />
+                <p>No activity events match your filter yet.</p>
+                <span style={{ fontSize: '0.8rem' }}>Events will stream live when Nyasha processes bookings or WhatsApp messages.</span>
+              </div>
+            ) : (
+              filteredEvents.map(event => {
+                const isExpanded = expandedEventId === event.id;
+                let badgeClass = 'system';
+                let Icon = Bot;
+
+                if (event.event_type === 'whatsapp') { badgeClass = 'whatsapp'; Icon = Phone; }
+                else if (event.event_type === 'sql') { badgeClass = 'sql'; Icon = Database; }
+                else if (event.event_type === 'search') { badgeClass = 'search'; Icon = Search; }
+                else if (event.event_type === 'image_search') { badgeClass = 'image_search'; Icon = ImageIcon; }
+                else if (event.event_type === 'web_scrape') { badgeClass = 'web_scrape'; Icon = Upload; }
+                else if (event.event_type === 'task_start') { badgeClass = 'task_start'; Icon = Sparkles; }
+                else if (event.event_type === 'task_complete') { badgeClass = 'task_complete'; Icon = CheckCircle2; }
+                else if (event.event_type === 'thought') { badgeClass = 'thought'; Icon = Bot; }
+                else if (event.event_type === 'error') { badgeClass = 'error'; Icon = AlertCircle; }
+
+                return (
+                  <div key={event.id} className="event-card">
+                    <div
+                      className="event-card-header"
+                      onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
+                    >
+                      <div className="event-left-group">
+                        <div className={`event-type-badge ${badgeClass}`}>
+                          <Icon size={16} />
+                        </div>
+                        <div className="event-title-meta">
+                          <span className="event-title">{event.title}</span>
+                          <span className="event-time-stamp">{event.formatted_time || event.timestamp}</span>
+                        </div>
+                      </div>
+
+                      <div className="event-right-group">
+                        <span className={`event-status-pill ${event.status}`}>
+                          {event.status}
+                        </span>
+                        <ChevronDown size={14} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
+                      </div>
+                    </div>
+
+                    {isExpanded && event.details && (
+                      <div className="event-card-body">
+                        {event.event_type === 'sql' ? (
+                          <pre className="event-code-block"><code>{event.details}</code></pre>
+                        ) : (
+                          <div className="event-details-text">{event.details}</div>
+                        )}
+                        {event.extra && Object.keys(event.extra).length > 0 && (
+                          <div style={{ marginTop: '0.4rem' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)' }}>Payload Metadata:</span>
+                            <pre className="event-code-block" style={{ fontSize: '0.74rem', marginTop: '0.2rem' }}>
+                              <code>{JSON.stringify(event.extra, null, 2)}</code>
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="app-layout">
       {/* NARROW SIDEBAR */}
@@ -1191,6 +1483,18 @@ function App() {
             title="Venues Dashboard"
           >
             <LayoutGrid size={20} />
+          </button>
+
+          <button
+            onClick={() => setActiveTab('agent_monitor')}
+            className={`sidebar-btn ${activeTab === 'agent_monitor' ? 'active' : ''}`}
+            title="Real-Time Agent Activity Monitor"
+            style={{ position: 'relative' }}
+          >
+            <Bot size={20} />
+            {(agentStatus?.status === 'active' || agentStatus?.status === 'thinking') && (
+              <span className="live-status-dot-badge" />
+            )}
           </button>
 
           <button
@@ -1493,6 +1797,8 @@ function App() {
             </main>
           </div>
         )}
+
+        {activeTab === 'agent_monitor' && renderAgentMonitorView()}
 
         {activeTab === 'venues' && (
           <div className="venues-dashboard">

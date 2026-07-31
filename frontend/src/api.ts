@@ -292,6 +292,73 @@ export async function getAllContacts(query?: string): Promise<VenueContact[]> {
   return response.json();
 }
 
+export interface AgentActivityEvent {
+  id: string;
+  timestamp: string;
+  formatted_time: string;
+  event_type: 'task_start' | 'task_complete' | 'whatsapp' | 'sql' | 'search' | 'image_search' | 'web_scrape' | 'thought' | 'error' | 'init' | 'ping' | 'system';
+  title: string;
+  details?: string;
+  status: 'info' | 'success' | 'warning' | 'error' | 'running';
+  agent_status?: string;
+  current_task?: string | null;
+  extra?: Record<string, any>;
+  history?: AgentActivityEvent[];
+}
+
+export interface AgentStatusResponse {
+  status: 'idle' | 'active' | 'thinking' | 'error' | string;
+  current_task: string | null;
+  active_booking_id: number | null;
+  active_venue_id: number | null;
+  task_started_at: string | null;
+  total_tasks_completed: number;
+  total_events_logged: number;
+}
+
+export async function getAgentActivityHistory(): Promise<AgentActivityEvent[]> {
+  const response = await fetch('/api/agent/activity');
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function clearAgentActivityHistory(): Promise<void> {
+  await fetch('/api/agent/activity', { method: 'DELETE' });
+}
+
+export async function getAgentStatus(): Promise<AgentStatusResponse> {
+  const response = await fetch('/api/agent/status');
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
+export function connectAgentActivityStream(
+  onEvent: (event: AgentActivityEvent) => void,
+  onError?: (error: Event) => void
+): EventSource {
+  const eventSource = new EventSource('/api/agent/activity/stream');
+
+  eventSource.onmessage = (e) => {
+    try {
+      const data: AgentActivityEvent = JSON.parse(e.data);
+      onEvent(data);
+    } catch (err) {
+      console.error('Error parsing SSE event data:', err);
+    }
+  };
+
+  if (onError) {
+    eventSource.onerror = onError;
+  }
+
+  return eventSource;
+}
+
+
 
 
 

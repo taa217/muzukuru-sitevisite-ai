@@ -97,11 +97,75 @@ class ChatResponse(BaseModel):
 
 from app.agent.db import execute_read_query, get_db_connection, save_whatsapp_message, get_whatsapp_chat_history
 from app.services.whatsapp import send_whatsapp_message
+from app.services.agent_tracker import agent_tracker
 from fastapi import Request
+from fastapi.responses import StreamingResponse
+import json
+import datetime
 
 @app.get("/")
 def read_root():
     return {"message": "Welcome to SiteVisit AI Backend API", "status": "running"}
+
+@app.get("/api/agent/activity")
+def get_agent_activity():
+    return agent_tracker.get_history()
+
+@app.delete("/api/agent/activity")
+def clear_agent_activity():
+    agent_tracker.clear_history()
+    return {"status": "success", "message": "Activity log cleared"}
+
+@app.get("/api/agent/status")
+def get_agent_status():
+    return agent_tracker.get_status()
+
+@app.get("/api/agent/activity/stream")
+async def stream_agent_activity(request: Request):
+    async def event_generator():
+        queue = agent_tracker.subscribe()
+        try:
+            # Yield initial connection payload
+            initial_event = {
+                "id": "init",
+                "event_type": "init",
+                "title": "Connected to Real-Time Agent Stream",
+                "details": "Established live connection with Nyasha agent execution stream",
+                "status": "info",
+                "agent_status": agent_tracker.get_status(),
+                "history": agent_tracker.get_history(),
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            yield f"data: {json.dumps(initial_event)}\n\n"
+
+            while True:
+                if await request.is_disconnected():
+                    logger.info("SSE client disconnected from /api/agent/activity/stream")
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    ping_event = {
+                        "id": f"ping-{int(datetime.datetime.now().timestamp())}",
+                        "event_type": "ping",
+                        "title": "Ping",
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        "agent_status": agent_tracker.get_status()
+                    }
+                    yield f"data: {json.dumps(ping_event)}\n\n"
+        finally:
+            agent_tracker.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @app.get("/api/venue/site-visits")
 def get_site_visits():
@@ -466,11 +530,26 @@ async def auto_trigger_booking_coordination(
     the venue coordinator via WhatsApp to request any missing database details (power backup, wifi, capacity, etc.).
     """
     logger.info(f"Booking coordination task triggered for booking ID: {booking_id}, venue ID: {venue_id}, contact ID: {contact_id}. Waiting 5 seconds...")
+    agent_tracker.set_task_state(
+        "active",
+        current_task=f"Site Visit Booking #{booking_id} Coordination",
+        booking_id=booking_id,
+        venue_id=venue_id
+    )
+    agent_tracker.log_activity(
+        "task_start",
+        f"Site Visit Booking #{booking_id} Coordination Initiated",
+        f"Venue ID: {venue_id} | Contact ID: {contact_id}",
+        status="running",
+        extra={"booking_id": booking_id, "venue_id": venue_id}
+    )
     await asyncio.sleep(5)
     
     try:
         if get_agent_graph is None:
             logger.error("Agent graph is not initialized. Background booking check failed.")
+            agent_tracker.log_activity("error", f"Booking #{booking_id} Check Failed", "Agent graph is not initialized", status="error")
+            agent_tracker.set_task_state("idle")
             return
             
         agent = get_agent_graph()
@@ -554,11 +633,26 @@ async def auto_trigger_booking_coordination(
         )
         
         logger.info(f"Invoking agent graph for auto checking booking {booking_id} and venue {venue_id}")
+        agent_tracker.log_activity("thought", f"Analyzing Booking Requirements & Database State", f"Nyasha is reasoning about tasks for Booking #{booking_id}", status="running")
         await agent.ainvoke({"messages": [instruction_msg]})
         logger.info(f"Finished background check and message task for booking {booking_id} and venue {venue_id}")
+        agent_tracker.log_activity(
+            "task_complete",
+            f"Site Visit Booking #{booking_id} Coordination Completed",
+            f"Finished coordination tasks for Site Visit #{booking_id} (Venue #{venue_id})",
+            status="success",
+            extra={"booking_id": booking_id, "venue_id": venue_id}
+        )
         
     except Exception as e:
         logger.error(f"Error in auto_trigger_booking_coordination: {e}", exc_info=True)
+        agent_tracker.log_activity(
+            "error",
+            f"Booking #{booking_id} Coordination Encountered Error",
+            str(e),
+            status="error"
+        )
+        agent_tracker.set_task_state("error")
 
 
 @app.post("/api/venues")
@@ -809,6 +903,20 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
     Background task to process an incoming WhatsApp message, invoke the agent,
     and reply back via WhatsApp.
     """
+    info = get_contact_info(sender)
+    sender_name = info["name"]
+
+    agent_tracker.set_task_state(
+        "active",
+        current_task=f"Processing WhatsApp Message from {sender_name} ({sender})"
+    )
+    agent_tracker.log_activity(
+        "task_start",
+        f"Incoming WhatsApp Message from {sender_name}",
+        f"Sender: {sender_name} ({sender})\nMessage: '{message_body}'",
+        status="running",
+        extra={"sender": sender, "message": message_body}
+    )
     try:
         # 1. Save user's message to database history
         try:
@@ -824,8 +932,6 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
             db_history = []
         
         # Retrieve sender name, role, and crew status to inject context
-        info = get_contact_info(sender)
-        sender_name = info["name"]
         sender_role = info["role"]
         is_crew = info["is_crew"]
 
@@ -949,6 +1055,7 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
         if get_agent_graph is None:
             raise ValueError("Agent graph is not initialized.")
             
+        agent_tracker.log_activity("thought", f"Processing Message from {sender_name}", f"Nyasha is formulating response and selecting tools", status="running")
         agent = get_agent_graph()
         result = await agent.ainvoke({"messages": langchain_messages})
         
@@ -969,9 +1076,23 @@ async def process_incoming_whatsapp_message(sender: str, message_body: str):
         # 7. Send message back to user via WhatsApp
         send_whatsapp_message(sender, ai_response)
         logger.info(f"Successfully processed incoming WhatsApp message from {sender} and sent reply.")
+        agent_tracker.log_activity(
+            "task_complete",
+            f"WhatsApp Message Reply Sent to {sender_name}",
+            f"Replied to {sender_name} ({sender})\nResponse: {ai_response[:200]}" + ("..." if len(ai_response) > 200 else ""),
+            status="success",
+            extra={"sender": sender, "reply": ai_response}
+        )
         
     except Exception as e:
         logger.error(f"Error processing incoming WhatsApp message from {sender}: {e}", exc_info=True)
+        agent_tracker.log_activity(
+            "error",
+            f"WhatsApp Message Processing Failed ({sender})",
+            str(e),
+            status="error"
+        )
+        agent_tracker.set_task_state("error")
 
 
 @app.post("/api/whatsapp/webhook")
